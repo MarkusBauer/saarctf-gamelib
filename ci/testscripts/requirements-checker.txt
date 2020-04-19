@@ -1,0 +1,11 @@
+# for the task runner
+redis
+
+# for the scripts
+requests
+git+https://github.com/Gallopsled/pwntools/@dev3
+numpy
+pycryptodome
+fuckpy3
+beautifulsoup4
+pytz
