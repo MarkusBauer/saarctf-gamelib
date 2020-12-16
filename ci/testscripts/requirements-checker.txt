@@ -3,7 +3,8 @@ redis
 
 # for the scripts
 requests
-git+https://github.com/Gallopsled/pwntools/@dev3
+# git+https://github.com/Gallopsled/pwntools/@dev3
+pwntools
 numpy
 pycryptodome
 fuckpy3

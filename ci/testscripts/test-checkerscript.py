@@ -21,31 +21,43 @@ def make_badge(text: str, color: str, name='checkers'):
 
 
 def check_basic_operations(checker, team, tick=1):
-	print(f'[...] Run check_integrity(team, {tick})')
-	status, msg = run_checker(checker.check_integrity, team, tick)
-	assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
-	print(f'[...] Run store_flags(team, {tick})')
-	status, msg = run_checker(checker.store_flags, team, tick)
-	assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
-	print(f'[...] Run retrieve_flags(team, {tick})')
-	status, msg = run_checker(checker.retrieve_flags, team, tick)
-	assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+	checker.initialize_team(team)
+	try:
+		print(f'[...] Run check_integrity(team, {tick})')
+		status, msg = run_checker(checker.check_integrity, team, tick)
+		assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+		print(f'[...] Run store_flags(team, {tick})')
+		status, msg = run_checker(checker.store_flags, team, tick)
+		assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+		print(f'[...] Run retrieve_flags(team, {tick})')
+		status, msg = run_checker(checker.retrieve_flags, team, tick)
+		assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+	finally:
+		checker.finalize_team(team)
 
 
 def check_retrieve_all(checker, team, max_tick):
 	for tick in range(1, max_tick + 1):
-		print(f'[...] Run retrieve_flags(team, {tick})')
-		status, msg = run_checker(checker.retrieve_flags, team, tick)
-		assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+		checker.initialize_team(team)
+		try:
+			print(f'[...] Run retrieve_flags(team, {tick})')
+			status, msg = run_checker(checker.retrieve_flags, team, tick)
+			assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+		finally:
+			checker.finalize_team(team)
 
 
 def check_offline(checker, team, tick):
-	print(f'[...] Run check_integrity(team, {tick})')
-	status, msg = run_checker(checker.check_integrity, team, tick)
-	assert status == 'OFFLINE', f'Wrong status: {status} ("{msg}")'
-	print(f'[...] Run store_flags(team, {tick})')
-	status, msg = run_checker(checker.store_flags, team, tick)
-	assert status == 'OFFLINE', f'Wrong status: {status} ("{msg}")'
+	checker.initialize_team(team)
+	try:
+		print(f'[...] Run check_integrity(team, {tick})')
+		status, msg = run_checker(checker.check_integrity, team, tick)
+		assert status == 'OFFLINE', f'Wrong status: {status} ("{msg}")'
+		print(f'[...] Run store_flags(team, {tick})')
+		status, msg = run_checker(checker.store_flags, team, tick)
+		assert status == 'OFFLINE', f'Wrong status: {status} ("{msg}")'
+	finally:
+		checker.finalize_team(team)
 
 
 def checker_test(name, hint=''):
@@ -129,9 +141,13 @@ def test_offline(cls, instance, team):
 def test_missing(cls, instance, team):
 	print('\n      Check for a flag that has never been issued ...')
 	tick = -3
-	print(f'[...] Run retrieve_flags(team, {tick})')
-	status, msg = run_checker(instance.retrieve_flags, team, tick)
-	assert status == 'FLAGMISSING', f'Wrong status: {status} ("{msg}")'
+	instance.initialize_team(team)
+	try:
+		print(f'[...] Run retrieve_flags(team, {tick})')
+		status, msg = run_checker(instance.retrieve_flags, team, tick)
+		assert status == 'FLAGMISSING', f'Wrong status: {status} ("{msg}")'
+	finally:
+		instance.finalize_team(team)
 
 
 @checker_test('Real-world test', 'Run gameserver script for more ticks, trying to find edge-cases')
@@ -142,16 +158,20 @@ def test_realworld(cls, instance, team):
 	print('\n      Test a few more ticks ...')
 	for tick in range(start, end + 1):
 		t = time.time()
-		print(f'      Simulate tick {tick} ...')
-		print(f'[...] Run check_integrity(team, {tick})')
-		status, msg = run_checker(instance.check_integrity, team, tick)
-		assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
-		print(f'[...] Run store_flags(team, {tick})')
-		status, msg = run_checker(instance.store_flags, team, tick)
-		assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
-		print(f'[...] Run retrieve_flags(team, {tick - 1})')
-		status, msg = run_checker(instance.retrieve_flags, team, tick - 1)
-		assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+		instance.initialize_team(team)
+		try:
+			print(f'      Simulate tick {tick} ...')
+			print(f'[...] Run check_integrity(team, {tick})')
+			status, msg = run_checker(instance.check_integrity, team, tick)
+			assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+			print(f'[...] Run store_flags(team, {tick})')
+			status, msg = run_checker(instance.store_flags, team, tick)
+			assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+			print(f'[...] Run retrieve_flags(team, {tick - 1})')
+			status, msg = run_checker(instance.retrieve_flags, team, tick - 1)
+			assert status == 'SUCCESS', f'Wrong status: {status} ("{msg}")'
+		finally:
+			instance.finalize_team(team)
 		times.append(time.time() - t)
 		time.sleep(1)
 	print(f'Average runtime: {sum(times) / len(times):6.3f} sec')
