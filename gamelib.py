@@ -140,6 +140,24 @@ class ServiceInterface:
 		"""
 		raise Exception('Override me')
 
+	def initialize_team(self, team: Team):
+		"""
+		Called once before check/store/retrieve are issued for a team.
+		Override for initialization code.
+		:param team:
+		:return:
+		"""
+		pass
+
+	def finalize_team(self, team: Team):
+		"""
+		Called once after check/store/retrieve have been issued, even in case of exceptions or timeout.
+		Override for finalization code.
+		:param team:
+		:return:
+		"""
+		pass
+
 	def store(self, team: Team, tick: int, key: str, value):
 		"""
 		Store arbitrary data for the next ticks
