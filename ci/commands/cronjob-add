@@ -4,7 +4,7 @@
 
 set -eu
 
-if [ -f /.dockerenv ]; then
+if grep -q docker /proc/1/cgroup; then
 	echo "[NOTICE] There is no crontab inside docker, we'll skip crontabs in testing environments. Crontab would be:"
 	echo "  user = $SERVICENAME"
 	echo "  home = $INSTALL_DIR"
@@ -12,7 +12,7 @@ if [ -f /.dockerenv ]; then
 	exit 0
 fi
 
-( sudo -u $SERVICENAME crontab -l; cat - <<EOF ) | sudo -u $SERVICENAME crontab -
+( sudo -u $SERVICENAME crontab -l || true; cat - <<EOF ) | sudo -u $SERVICENAME crontab -
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 SHELL=/bin/sh
 HOME=$INSTALL_DIR

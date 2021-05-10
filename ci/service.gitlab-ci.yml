@@ -113,7 +113,7 @@ exploits:
     - export PATH=$HOME/.local/bin:$PATH
     - ./gamelib/ci/buildscripts/configure_caching.sh
     - ./gamelib/ci/buildscripts/install-script-dependencies.sh
-      - ./dependencies.sh
+    - ./dependencies.sh
   script:
     - "python3 -u gamelib/ci/testscripts/test-exploits.py servicehost"
     - "touch .success"

@@ -15,7 +15,7 @@ useradd -m "$SERVICENAME"
 chmod 0750 "$INSTALL_DIR"
 
 # preload docker with systemctl replacement
-if [ -f /.dockerenv ]; then
+if grep -q docker /proc/1/cgroup; then
 	cat - > /usr/local/bin/systemctl <<'EOF'
 #!/bin/sh
 set -eu
@@ -23,12 +23,13 @@ set -eu
 if [ "$1" = "enable" ]; then
   echo systemctl not present in Docker, operation is mocked.
   mkdir -p /etc/systemd/system/multi-user.target.wants/
-  if [ -f "/etc/systemd/system/$2.service" ]; then
-    ln -s "/etc/systemd/system/$2.service" "/etc/systemd/system/multi-user.target.wants/"
-  elif [ -f "/lib/systemd/system/$2.service" ]; then
-    ln -s "/lib/systemd/system/$2.service" "/etc/systemd/system/multi-user.target.wants/"
+  servicefile=$(echo "$2" | sed 's/@.*/@/')
+  if [ -f "/etc/systemd/system/$servicefile.service" ]; then
+    ln -s "/etc/systemd/system/$servicefile.service" "/etc/systemd/system/multi-user.target.wants/$2.service"
+  elif [ -f "/lib/systemd/system/$servicefile.service" ]; then
+    ln -s "/lib/systemd/system/$servicefile.service" "/etc/systemd/system/multi-user.target.wants/$2.service"
   else
-    echo "Service $2.service not found!"
+    echo "Service $2.service ($servicefile.service) not found!"
     exit 1
   fi
 elif [ "$1" = "disable" ]; then

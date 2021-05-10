@@ -43,7 +43,7 @@ def build():
 	try:
 		# Invoke Docker
 		build_cmd = ' && '.join([
-			'cp -r /opt/input/*.sh /opt/input/service /opt/output/',
+			'cp -r /opt/input/*.sh /opt/input/service /opt/input/servicename /opt/output/',
 			'(timeout 3 /opt/input/gamelib/ci/buildscripts/test-and-configure-aptcache.sh || echo "no apt cache found. Install apt-cacher-ng for better performance!")',
 			'cd /opt/output',
 			'./build.sh',

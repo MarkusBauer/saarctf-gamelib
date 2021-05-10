@@ -459,7 +459,7 @@ EOF
 ### PostgreSQL
 To initialize a PostgreSQL database it needs to be started manually (for CI/Docker). We can do that in `install.sh`:
 ```shell
-if [ -f /.dockerenv ]; then
+if grep -q docker /proc/1/cgroup; then
   pg_ctlcluster 11 main start
 fi
 
@@ -476,7 +476,7 @@ EOF
 cp $INSTALL_DIR/init.sql /tmp/
 sudo -u $SERVICENAME psql -v ON_ERROR_STOP=1 -f "/tmp/init.sql"
 
-if [ -f /.dockerenv ]; then
+if grep -q docker /proc/1/cgroup; then
   pg_ctlcluster 11 main stop
 fi
 ``` 
