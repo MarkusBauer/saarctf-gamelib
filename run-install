@@ -16,6 +16,9 @@ else
   "$SCRIPTPATH/run-build"
 fi
 
+# Build the base image (if necessary)
+python3 -u $SCRIPTPATH/ci/build-in-docker.py build-ci-base
+
 # This must be a file otherwise docker-compose will produce "funny" results
 touch "$SCRIPTPATH/../docker-container-infos.txt"
 

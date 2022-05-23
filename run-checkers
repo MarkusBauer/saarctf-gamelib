@@ -14,8 +14,9 @@ if [ $# -eq 0 ]; then
   echo "Testing against $TARGET ... (check docker container is running)"
 else
   TARGET=$1
+  shift
   echo "Testing against $TARGET"
 fi
 
 cd "$SCRIPTPATH/.."
-python3 -u "$SCRIPTPATH/ci/testscripts/test-checkerscript.py" "$TARGET"
+python3 -u "$SCRIPTPATH/ci/testscripts/test-checkerscript.py" "$TARGET" "$@"

@@ -2,6 +2,7 @@
 set -euxo pipefail
 
 SCRIPTPATH="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
+source "${SCRIPTPATH}/../include/detect-docker"
 
 test -f servicename
 
@@ -15,8 +16,8 @@ useradd -m "$SERVICENAME"
 chmod 0750 "$INSTALL_DIR"
 
 # preload docker with systemctl replacement
-if grep -q docker /proc/1/cgroup; then
-	cat - > /usr/local/bin/systemctl <<'EOF'
+if detect-docker; then
+  cat - > /usr/local/bin/systemctl <<'EOF'
 #!/bin/sh
 set -eu
 
@@ -39,16 +40,16 @@ else
   exit 1
 fi
 EOF
-	chmod +x /usr/local/bin/systemctl
+  chmod +x /usr/local/bin/systemctl
 
-	# Clear existing systemd scripts
-	rm -f /lib/systemd/system/multi-user.target.wants/* \
-		/etc/systemd/system/*.wants/* \
-		/lib/systemd/system/local-fs.target.wants/* \
-		/lib/systemd/system/sockets.target.wants/*udev* \
-		/lib/systemd/system/sockets.target.wants/*initctl* \
-		/lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
-		/lib/systemd/system/systemd-update-utmp*
+  # Clear existing systemd scripts
+  rm -f /lib/systemd/system/multi-user.target.wants/* \
+    /etc/systemd/system/*.wants/* \
+    /lib/systemd/system/local-fs.target.wants/* \
+    /lib/systemd/system/sockets.target.wants/*udev* \
+    /lib/systemd/system/sockets.target.wants/*initctl* \
+    /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
+    /lib/systemd/system/systemd-update-utmp*
 
   # if inside docker, configure apt cache
   timeout 3 ./gamelib/ci/buildscripts/test-and-configure-aptcache.sh || true

@@ -39,7 +39,7 @@ In parallel, the service **checker** script will be loaded by the gameserver inf
 Finally the sample **exploits** will be used to test that the vulnerabilities are actually exploitable. 
 All steps can be tested with the provided Gitlab CI configuration. 
 
-If in doubt, all operating systems will be Debian Buster and have at least Python3 installed.
+If in doubt, all operating systems will be Debian Bullseye and have at least Python3 installed.
 
 
 Functions

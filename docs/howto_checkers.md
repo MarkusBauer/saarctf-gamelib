@@ -136,7 +136,7 @@ Additional Dependencies
 If you need additional software to run your checkerscript (python modules, system packages) you can install them in your service's `dependencies.sh`. 
 
 1. Please check first if the package you need is already preinstalled. 
-2. Then check if the package can be installed from Debian Buster's repository (using `apt`). 
+2. Then check if the package can be installed from Debian Bullseye's repository (using `apt`). 
    These packages are usually more stable and don't change that often.
 3. If not, you can freely use `python3 -m pip install`. 
 

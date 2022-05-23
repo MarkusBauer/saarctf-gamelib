@@ -102,6 +102,21 @@ Example configurations
 These example configurations worked for other services and can be used as starting point.
 Please always check if the used versions are still up to date. 
 
+We have examples for:
+- [Binary with socat](#binary-with-socat)
+- [C/C++ with CMake](#cc-with-cmake)
+- [C# dotnet core binary](#c-dotnet-core-binary)
+- [Go Binary](#go-binary)
+- [Go Application with sources](#go-application-with-sources)
+- [Java / Kotlin with Gradle](#java-kotlin-with-gradle)
+- [MongoDB](#mongodb)
+- [NPM build for frontend](#npm-build-for-frontend)
+- [NPM / NodeJS server](#npm-nodejs-server)
+- [PHP with nginx/php-fpm](#php-with-nginxphp-fpm)
+- [Python/Django with uwsgi](#pythondjango-with-uwsgi)
+- [PostgreSQL](#postgresql)
+- [Rust Binary](#rust-binary)
+
 
 ### Binary with socat
 We build the binary in `build.sh` and deploy it in `install.sh`. Binary is owned by root (not modifiable by attackers).
@@ -239,6 +254,32 @@ Restart=always
 RestartSec=10
 EOF
 ```
+
+
+
+### Go Application with sources
+You can host Go applications with source code. Debian currently ships Go 1.15. 
+For a full example, see [TuringMachines++](https://gitlab.saarsec.rocks/MarkusBauer/turing-machines).
+We create a readonly home directory, and a writeable `data` folder in `install.sh`:
+```shell
+# 1. Install dependencies
+apt-get update
+apt-get install -y golang-go
+
+# 2. Copy/move files
+mv service/* "$INSTALL_DIR/"
+mkdir "$INSTALL_DIR/data"
+chown -R "$SERVICENAME:$SERVICENAME" "$INSTALL_DIR/data"
+# make-append-only "$INSTALL_DIR/data"
+
+# 3. Compile
+cd "$INSTALL_DIR"
+go build
+
+# 4. Configure startup for your service
+service-add-simple "$INSTALL_DIR/created-go-binary" "$INSTALL_DIR/" "..."
+```
+
 
 
 ### Java / Kotlin with Gradle
@@ -380,8 +421,8 @@ In `install.sh` we download a recent NodeJS from a third-party repository and co
 ```shell
 # 1. Install dependencies
 wget --quiet -O - https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add -
-VERSION=node_12.x
-DISTRO=buster
+VERSION=node_14.x
+DISTRO=bullseye
 echo "deb http://deb.nodesource.com/$VERSION $DISTRO main" > /etc/apt/sources.list.d/nodesource.list
 echo "deb-src http://deb.nodesource.com/$VERSION $DISTRO main" >> /etc/apt/sources.list.d/nodesource.list
 apt-get update
@@ -456,11 +497,75 @@ EOF
 
 
 
+### Python/Django with uwsgi
+We can host Django services with uwsgi and nginx frontend. 
+See [billeroy-voch](https://gitlab.saarsec.rocks/ben/villeroy-boch) for a full example.
+
+In `build.sh`, you can patch the configuration if necessary:
+```shell
+sed -i 's/DEBUG = True/DEBUG = False/' service/servicename/servicename/settings.py
+```
+
+In `install.sh` (change `servicename`):
+```shell
+# 1. Install dependencies
+apt-get update
+apt-get install -y python3 nginx python3-wheel python3-pip python3-setuptools python3-psycopg2 postgresql libpcre3 libpcre3-dev libjpeg-dev libfreetype6-dev zlib1g-dev
+pip3 install uwsgi
+chmod +x /usr/local/bin/uwsgi  # Bugfix (?)
+pip3 install -r service/servicename/requirements.txt
+
+# 2. Copy/move files
+mv service/* "$INSTALL_DIR/"
+chown -R "$SERVICENAME:$SERVICENAME" "$INSTALL_DIR"
+sudo -u "$SERVICENAME" python3 "$INSTALL_DIR/servicename/manage.py" collectstatic
+
+# 3. Configure the server
+cat - > /etc/nginx/sites-available/$SERVICENAME <<EOF
+server {
+    listen 8000;
+    location / {
+        include uwsgi_params;
+        uwsgi_pass unix:/tmp/$SERVICENAME.sock;
+    }
+}
+EOF
+ln -s /etc/nginx/sites-available/$SERVICENAME /etc/nginx/sites-enabled/$SERVICENAME
+
+# 4. Configure startup for your service
+service-add-advanced "/usr/local/bin/uwsgi $INSTALL_DIR/uwsgi.ini" "$INSTALL_DIR/" "..." <<'EOF'
+KillSignal=SIGQUIT
+NotifyAccess=all
+EOF
+sed -i 's/Type=simple/Type=forking/' "/etc/systemd/system/$SERVICENAME.service"
+
+# Later, init database:
+sudo -u "$SERVICENAME" python3 "$INSTALL_DIR/servicename/manage.py" migrate
+```
+
+Finally, you need a uwsgi config file in `service/uwsgi.ini`, like this one:
+```ini
+[uwsgi]
+chdir=/home/servicename/servicename
+wsgi-file=/home/servicename/servicename/servicename/wsgi.py
+master=true
+processes=4
+#harakiri=20
+max-requests=5000
+vacuum=true
+static-map=/static=/home/servicename/static
+daemonize=//home/servicename/%n.log
+socket=/tmp/servicename.sock
+chmod-socket=777
+```
+
+
+
 ### PostgreSQL
 To initialize a PostgreSQL database it needs to be started manually (for CI/Docker). We can do that in `install.sh`:
 ```shell
-if grep -q docker /proc/1/cgroup; then
-  pg_ctlcluster 11 main start
+if detect-docker; then
+  pg_ctlcluster 13 main start
 fi
 
 # Create a SQL user and database for your service (with peer authentication)
@@ -476,8 +581,73 @@ EOF
 cp $INSTALL_DIR/init.sql /tmp/
 sudo -u $SERVICENAME psql -v ON_ERROR_STOP=1 -f "/tmp/init.sql"
 
-if grep -q docker /proc/1/cgroup; then
-  pg_ctlcluster 11 main stop
+if detect-docker; then
+  pg_ctlcluster 13 main stop
 fi
 ``` 
+
+
+
+### Rust Binary
+We build the binary in `build.sh` with the official rust container.
+See [vault](https://gitlab.saarsec.rocks/simeon.hoffmann/vault) for a full example.
+To this end, we edit `.gitlab-ci.yml` and add:
+```yaml
+build:
+  image: rust:latest 
+```
+
+Then in `build.sh`, we run (patch `binaryname`):
+```shell
+cd service && cargo build --release
+cd ..
+cp service/target/release/binaryname ./
+# copy other files from service directory you want to keep...
+rm -rf service
+mkdir service
+mv binaryname service/
+# move other files back ...
+```
+
+Install like any other [Binary with socat](#binary-with-socat).
+
+
+
+### Rust Application (with source)
+See [saarbahn](https://gitlab.saarsec.rocks/simeon.hoffmann/saarbahn) for a full example.
+In `build.sh`, you can do the usual code cleanup. 
+
+In `install.sh`, we install rust using rustup and build the application. 
+This example assumes that you have one folder `<your-dir-name>` in your `service` directory.
+```shell
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > $HOME/tmp.sh
+if mount | grep '/dev/shm' | grep -q 'noexec'; then
+    mkdir -p /root/tmp
+    export TMPDIR=/root/tmp
+else
+    export TMPDIR=/dev/shm
+fi
+sh $HOME/tmp.sh -y
+rm -f $HOME/tmp.sh
+# if you need additional CLI tools from cargo:
+source $HOME/.cargo/env
+cargo install diesel_cli
+
+# Copy and build service
+mv service/<your-dir-name> "$INSTALL_DIR/"
+chown -R "root:$SERVICENAME" "$INSTALL_DIR"
+chmod 0750 "$INSTALL_DIR"
+cd "$INSTALL_DIR/<your-dir-name>"
+cargo build
+
+# Cleanup
+rm -rf /root/tmp
+unset TMPDIR
+
+# Add the service (standalone webserver)
+service-add-simple "$INSTALL_DIR/<your-dir-name>/target/debug/<your-binary>" "$INSTALL_DIR/<your-dir-name>" "..."
+# OR: socat binary
+```
+If your application is a binary communicating by stdin/stdout: configure like [Binary with socat](#binary-with-socat).
 

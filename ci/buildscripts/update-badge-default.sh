@@ -4,7 +4,7 @@ set -euxo pipefail
 # Run after all other steps, create badges that are missing so far (because step has not been run)
 
 function makebadge {
-	wget "https://img.shields.io/badge/$1" -O "public/$2"
+  wget "https://img.shields.io/badge/$1" -O "public/$2"
 }
 
 mkdir -p public

@@ -1,4 +1,4 @@
-#image: debian:buster
+#image: debian:bullseye
 image: saarsec/saarctf-ci-base:latest
 
 variables:
@@ -51,15 +51,15 @@ build:
       - service
 
 
-build-base-image:
-  stage: build
-  when: manual
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
-  script:
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR/gamelib/ci/docker-saarctf-ci-base --dockerfile $CI_PROJECT_DIR/gamelib/ci/docker-saarctf-ci-base/Dockerfile --destination $CI_REGISTRY_IMAGE:base
+#build-base-image:
+#  stage: build
+#  when: manual
+#  image:
+#    name: gcr.io/kaniko-project/executor:debug
+#    entrypoint: [""]
+#  script:
+#    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+#    - /kaniko/executor --context $CI_PROJECT_DIR/gamelib/ci/docker-saarctf-ci-base --dockerfile $CI_PROJECT_DIR/gamelib/ci/docker-saarctf-ci-base/Dockerfile --destination $CI_REGISTRY_IMAGE:base
 
 
 install:
@@ -69,7 +69,7 @@ install:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - sed -i "s|FROM saarsec/saarctf-ci-base|FROM $CI_REGISTRY_IMAGE:base|" gamelib/ci/InstallCI.Dockerfile
+    # - sed -i "s|FROM saarsec/saarctf-ci-base|FROM $CI_REGISTRY_IMAGE:base|" gamelib/ci/InstallCI.Dockerfile
     - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/gamelib/ci/InstallCI.Dockerfile --destination $CI_REGISTRY_IMAGE:pipe-$CI_PIPELINE_ID
     - "touch public/ci-install.svg"
   after_script:
