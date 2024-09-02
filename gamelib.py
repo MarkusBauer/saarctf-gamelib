@@ -11,6 +11,7 @@ import json
 import re
 import struct
 import os
+from abc import ABC, abstractmethod
 from typing import List, Any, Optional, Tuple, Set
 
 import requests
@@ -18,22 +19,22 @@ import requests
 from . import flag_ids
 
 try:
-    from saarctf_commons.config import SECRET_FLAG_KEY, get_redis_connection
+    from saarctf_commons.config import config
+    from saarctf_commons.redis import get_redis_connection
 
 except ImportError:
     # These values / methods will later be defined by the server-side configuration
-    SECRET_FLAG_KEY: bytes = b'\x00' * 32  # type: ignore
+    class config:  # type: ignore[no-redef]
+        SECRET_FLAG_KEY: bytes = b'\x00' * 32  # type: ignore
 
     import redis
 
     REDIS_HOST = os.environ['REDIS_HOST'] if 'REDIS_HOST' in os.environ else 'localhost'
     REDIS_DB = int(os.environ['REDIS_DB']) if 'REDIS_DB' in os.environ else 3
 
+
     def get_redis_connection() -> redis.StrictRedis:
         return redis.StrictRedis(REDIS_HOST, db=REDIS_DB)
-
-# default timeout for a single connection
-TIMEOUT = 7
 
 # determines size of the flag
 MAC_LENGTH = 16
@@ -46,10 +47,10 @@ class FlagMissingException(Exception):
     Service is working, but flag could not be retrieved
     """
 
-    def __init__(self, message: str):
+    def __init__(self, message: str) -> None:
         self.message = message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.message)
 
 
@@ -58,10 +59,10 @@ class MumbleException(AssertionError):
     Service is online, but behaving unexpectedly (dropping data, returning wrong answers, ...). AssertionError is also valid.
     """
 
-    def __init__(self, message: str):
+    def __init__(self, message: str) -> None:
         self.message = message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.message)
 
 
@@ -70,15 +71,15 @@ class OfflineException(Exception):
     Service is not reachable / connections get dropped or interrupted
     """
 
-    def __init__(self, message: str):
+    def __init__(self, message: str) -> None:
         self.message = message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.message)
 
 
 class Team:
-    def __init__(self, _id: int, name: str, ip: str):
+    def __init__(self, _id: int, name: str, ip: str) -> None:
         """
         :param int _id: database team id
         :param str name: team name
@@ -89,7 +90,7 @@ class Team:
         self.ip = ip
 
 
-class ServiceInterface:
+class ServiceInterface(ABC):
     """
     Stateless class that interacts with a specific service. Each service has an ID and a name.
     Inherit and override: check_integrity, store_flags and retrieve_flags.
@@ -106,10 +107,11 @@ class ServiceInterface:
     # Possible values: 'username', 'hex<number>', 'alphanum<number>', 'email', 'pattern:${username}/constant_string/${hex12}'
     flag_id_types: List[str] = []
 
-    def __init__(self, service_id: int):
+    def __init__(self, service_id: int) -> None:
         self.id = service_id
 
-    def check_integrity(self, team: Team, tick: int):
+    @abstractmethod
+    def check_integrity(self, team: Team, tick: int) -> None:
         """
         Do integrity checks that are not related to flags (checking the frontpage, or if exploit-relevant functions are still available)
         :param Team team:
@@ -121,7 +123,8 @@ class ServiceInterface:
         """
         raise Exception('Override me')
 
-    def store_flags(self, team: Team, tick: int):
+    @abstractmethod
+    def store_flags(self, team: Team, tick: int) -> int | None:
         """
         Send one or multiple flags to a given team. You can perform additional functionality checks here.
         :param Team team:
@@ -133,7 +136,8 @@ class ServiceInterface:
         """
         raise Exception('Override me')
 
-    def retrieve_flags(self, team: Team, tick: int):
+    @abstractmethod
+    def retrieve_flags(self, team: Team, tick: int) -> int | None:
         """
         Retrieve all flags stored in a previous tick from a given team. You can perform additional functionality checks here.
         :param Team team:
@@ -146,7 +150,7 @@ class ServiceInterface:
         """
         raise Exception('Override me')
 
-    def initialize_team(self, team: Team):
+    def initialize_team(self, team: Team) -> None:
         """
         Called once before check/store/retrieve are issued for a team.
         Override for initialization code.
@@ -155,7 +159,7 @@ class ServiceInterface:
         """
         pass
 
-    def finalize_team(self, team: Team):
+    def finalize_team(self, team: Team) -> None:
         """
         Called once after check/store/retrieve have been issued, even in case of exceptions or timeout.
         Override for finalization code.
@@ -164,7 +168,7 @@ class ServiceInterface:
         """
         pass
 
-    def store(self, team: Team, tick: int, key: str, value):
+    def store(self, team: Team, tick: int, key: str, value: Any) -> None:
         """
         Store arbitrary data for the next ticks
         :param Team team:
@@ -198,12 +202,12 @@ class ServiceInterface:
         :return: the flag
         """
         data = struct.pack('<HHHH', tick & 0xffff, team.id, self.id, payload)
-        mac = hmac.new(SECRET_FLAG_KEY, data, hashlib.sha256).digest()[:MAC_LENGTH]
+        mac = hmac.new(config.SECRET_FLAG_KEY, data, hashlib.sha256).digest()[:MAC_LENGTH]
         flag = base64.b64encode(data + mac).replace(b'+', b'-').replace(b'/', b'_')
         return 'SAAR{' + flag.decode('utf-8') + '}'
 
     def check_flag(self, flag: str, check_team_id: Optional[int] = None, check_stored_tick: Optional[int] = None) \
-            -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
+        -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
         """
         Check if a given flag is valid for this service, and returns the components (team-id, service-id, the tick it
         has been set and the payload bytes).
@@ -228,7 +232,7 @@ class ServiceInterface:
         if serviceid != self.id:
             print('Flag "{}": invalid service'.format(flag))
             return (None, None, None, None)
-        mac = hmac.new(SECRET_FLAG_KEY, data[:-MAC_LENGTH], hashlib.sha256).digest()[:MAC_LENGTH]
+        mac = hmac.new(config.SECRET_FLAG_KEY, data[:-MAC_LENGTH], hashlib.sha256).digest()[:MAC_LENGTH]
         if data[-MAC_LENGTH:] != mac:
             print('Flag "{}": invalid mac'.format(flag))
             return (None, None, None, None)
@@ -264,7 +268,7 @@ class ServiceInterface:
 
 # === Assertion methods ===
 
-def assert_equals(expected, result):
+def assert_equals(expected, result) -> None:
     """
     :param expected:
     :param result:

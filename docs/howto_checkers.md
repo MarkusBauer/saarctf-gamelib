@@ -18,7 +18,7 @@ class YourServiceInterface(ServiceInterface):
     name = '...'
 
     def check_integrity(self, team: Team, tick: int):
-        assert(1 == 1, 'Calculation failed')
+        assert 1 == 1, 'Calculation failed'
         ...
 
     def store_flags(self, team: Team, tick: int):
@@ -40,12 +40,18 @@ it should contain one line formatted `your_script.py:YourClassName`.
 
 Guidelines
 ----------
-- Write Python 3 (gameserver uses Python 3.7+)
+- Write Python 3 (gameserver uses Python 3.10+)
 - You should only throw the `gamelib` exceptions - with everything other exception we will consider your script as "crashed".
-- Do I/O only with a timeout (for example: `gamelib.TIMEOUT` seconds)
+  - also allowed: requests & pwntools builtins, `ConnectionResetError`, `AssertionError`
+- Care about I/O:
+  - Use the provided I/O wrappers whenever possible (`with remote_connection() as conn`, `gamelib.Session()`)
+  - If not possible: 
+    - use a timeout (for example: `gamelib.TIMEOUT` seconds)
+    - ensure all connections are closed (`try finally` is the choice here)
 - To get nice usernames, use `gamelib.usernames.generate_name()`.
 - Be verbose - especially in error cases. From the stdout/stderr output you should always be able to tell what's wrong. 
   (We collect your script's output, but don't show it to teams).
+  - `gamelib.Session()` already logs your requests, but you might print some extra data (usernames etc)
 - Watch your imports:
   - Use absolute imports for the gamelib
   - Use relative imports for additonal files in your project
@@ -57,8 +63,9 @@ Guidelines
   from . import my_additional_file
   from .my_additional_file import secret_method
   ```
-- Try no to leak resources, always close your connections properly (using `try: finally:`). 
+- Try no to leak resources, always close your files/connections properly (using `try: finally:` or `with`). 
 - Do not store anything in global variables, files etc. If you need to persist data between invocations use Redis (see below).
+- Temporary files must have a random filename
 - *to be continued ...*
 
 
@@ -73,8 +80,10 @@ def store_flags(self, team: Team, tick: int):
     self.store(team, tick, 'credentials', [username, password])
 
 def retrieve_flags(self, team: Team, tick: int):
-    data = self.load(team, tick, 'credentials')
-    username, password = data
+    try:
+        username, password = self.load(team, tick, 'credentials')
+    except TypeError:
+        raise FlagNotFoundException('Flag not stored')  # self.store didn't run last tick
 ```
 
 
@@ -136,7 +145,7 @@ Additional Dependencies
 If you need additional software to run your checkerscript (python modules, system packages) you can install them in your service's `dependencies.sh`. 
 
 1. Please check first if the package you need is already preinstalled. 
-2. Then check if the package can be installed from Debian Bullseye's repository (using `apt`). 
+2. Then check if the package can be installed from Debian Bookworm's repository (using `apt`). 
    These packages are usually more stable and don't change that often.
 3. If not, you can freely use `python3 -m pip install`. 
 

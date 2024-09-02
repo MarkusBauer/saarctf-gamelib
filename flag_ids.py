@@ -5,10 +5,11 @@ import re
 import string
 
 try:
-    from saarctf_commons.config import SECRET_FLAG_KEY
+    from saarctf_commons.config import config
 except ImportError:
     # These values / methods will later be defined by the server-side configuration
-    SECRET_FLAG_KEY: bytes = b'\x00' * 32  # type: ignore
+    class config:  # type: ignore[no-redef]
+        SECRET_FLAG_KEY: bytes = b'\x00' * 32  # type: ignore
 
 
 def generate_flag_id(flag_id_type: str, service_id: int, team_id: int, tick: int, index: int = 0, **kwargs) -> str:
@@ -23,7 +24,7 @@ def generate_flag_id(flag_id_type: str, service_id: int, team_id: int, tick: int
     :param int index:
     :return:
     """
-    seed = hmac.new(SECRET_FLAG_KEY, f'{service_id}|{team_id}|{tick}|{index}'.encode(), hashlib.sha1).digest()
+    seed = hmac.new(config.SECRET_FLAG_KEY, f'{service_id}|{team_id}|{tick}|{index}'.encode(), hashlib.sha1).digest()
     rnd = random.Random(seed)
     return generate_flag_id_rnd(flag_id_type, rnd, **kwargs)
 

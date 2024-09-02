@@ -116,6 +116,7 @@ We have examples for:
 - [Python/Django with uwsgi](#pythondjango-with-uwsgi)
 - [PostgreSQL](#postgresql)
 - [Rust Binary](#rust-binary)
+- [Rust Application with sources](#rust-application-with-source)
 
 
 ### Binary with socat
@@ -422,7 +423,7 @@ In `install.sh` we download a recent NodeJS from a third-party repository and co
 # 1. Install dependencies
 wget --quiet -O - https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add -
 VERSION=node_14.x
-DISTRO=bullseye
+DISTRO=bookworm
 echo "deb http://deb.nodesource.com/$VERSION $DISTRO main" > /etc/apt/sources.list.d/nodesource.list
 echo "deb-src http://deb.nodesource.com/$VERSION $DISTRO main" >> /etc/apt/sources.list.d/nodesource.list
 apt-get update

@@ -1,4 +1,4 @@
-#image: debian:bullseye
+#image: debian:bookworm
 image: saarsec/saarctf-ci-base:latest
 
 variables:
@@ -140,3 +140,4 @@ pages:
     - public
   only:
   - master
+  - main

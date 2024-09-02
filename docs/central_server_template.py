@@ -96,9 +96,9 @@ class GameStatus:
     - currentTick (int)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.redis = redis.StrictRedis(**CONFIG['databases']['redis'])
-        self.state: str = self.redis.get('timing:state').decode()
+        self.state: str = self.redis.get('timing:state').decode()  # type: ignore
         r = self.redis.get('timing:currentRound')
         self.currentTick: int = int(r.decode()) if r else -1
         # watch for changes
@@ -107,7 +107,7 @@ class GameStatus:
         thread = threading.Thread(target=self.__listen_for_redis_events, name='Redis-Listener', daemon=True)
         thread.start()
 
-    def __listen_for_redis_events(self):
+    def __listen_for_redis_events(self) -> None:
         for item in self.redis_pubsub.listen():
             if item['type'] == 'message':
                 if item['channel'] == b'timing:state':
@@ -120,11 +120,11 @@ class GameStatus:
                     self.currentTick = int(r.decode()) if r else -1
                     self.new_tick(self.currentTick)
 
-    def state_changes(self, new_state: str):
+    def state_changes(self, new_state: str) -> None:
         # your code if necessary
         pass
 
-    def new_tick(self, tick: int):
+    def new_tick(self, tick: int) -> None:
         # your code if necessary
         pass
 

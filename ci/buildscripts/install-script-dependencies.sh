@@ -8,7 +8,8 @@ set -euxo pipefail
 apt-get update
 apt-get install -y git build-essential
 apt-get install -y --no-install-recommends redis-server
-apt-get install -y python3-redis python3-requests python3-numpy python3-pycryptodome python3-psutil python3-bs4
+apt-get install -y python3-redis python3-requests python3-numpy python3-pycryptodome python3-psutil python3-bs4 python3-redis python3-timeout-decorator
+rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 python3 -m pip install -r gamelib/ci/testscripts/requirements.txt
 python3 -m pip install -r gamelib/ci/testscripts/requirements-checker.txt
 

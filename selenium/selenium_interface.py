@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from abc import ABC
 from typing import Optional, List
 
 from selenium import webdriver
@@ -20,34 +21,34 @@ class ServiceWithTimeout(Service):
     Selenium service, with the connector wrapped for timeout reasons
     """
 
-    def __init__(self, executable_path, port=0, service_args=None, log_path=None, env=None, timeout=60):
+    def __init__(self, executable_path: str, port: int = 0, service_args=None, log_path=None, env=None, timeout: int = 60) -> None:
         wrapper = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'selenium_wrapper')
         super().__init__(wrapper, port, service_args, log_path, env)
-        self.prefix = [str(timeout), executable_path]
+        self.prefix: list[str] = [str(timeout), executable_path]
 
-    def command_line_args(self):
-        return self.prefix + super().command_line_args()
+    def command_line_args(self) -> list[str]:  # type: ignore
+        return self.prefix + super().command_line_args()  # type: ignore
 
 
-class SeleniumServiceInterface(ServiceInterface):
+class SeleniumServiceInterface(ServiceInterface, ABC):
     """
     Service interface base class with Selenium integration. Check out "get_selenium_webdriver".
     """
 
-    arguments = []  # additional arguments for the headless chrome process
-    blocked_urls = []  # a list of url patterns that should not be accessed (example: "*/bootstrap.min.css")
-    log_requested_urls = False  # collect a log of all requests made by the browser. Call #print_selenium_logs at the end of your script to access.
+    arguments: list[str] = []  # additional arguments for the headless chrome process
+    blocked_urls: list[str] = []  # a list of url patterns that should not be accessed (example: "*/bootstrap.min.css")
+    log_requested_urls: bool = False  # collect a log of all requests made by the browser. Call #print_selenium_logs at the end of your script to access.
 
-    def __init__(self, service_id: int):
+    def __init__(self, service_id: int) -> None:
         super().__init__(service_id)
         self.service: Optional[Service] = None
         self.webdriver: Optional[WebDriver] = None
 
-    def initialize_team(self, team: Team):
+    def initialize_team(self, team: Team) -> None:
         self.service = None
         self.webdriver = None
 
-    def finalize_team(self, team: Team):
+    def finalize_team(self, team: Team) -> None:
         try:
             if self.webdriver is not None:
                 self.webdriver.quit()
@@ -57,7 +58,7 @@ class SeleniumServiceInterface(ServiceInterface):
                 self.service.stop()
                 self.service = None
 
-    def get_selenium_webdriver(self, arguments=None, timeout=TIMEOUT) -> WebDriver:
+    def get_selenium_webdriver(self, arguments: list[str] | None = None, timeout: int = TIMEOUT) -> WebDriver:
         if self.webdriver:
             return self.webdriver
         if not arguments:
@@ -106,7 +107,9 @@ class SeleniumServiceInterface(ServiceInterface):
         print('[selenium] new webdriver', self.webdriver.name)
         return self.webdriver
 
-    def set_blocked_urls(self, driver: WebDriver, patterns: List[str]):
+    def set_blocked_urls(self, driver: WebDriver, patterns: List[str]) -> None:
+        if self.webdriver is None:
+            raise ValueError('Not initialized')
         params = {'cmd': 'Network.setBlockedURLs', 'params': {'urls': patterns}}
         command_result = self.webdriver.execute("send_command", params)
         params = {'cmd': 'Network.enable', 'params': {}}
@@ -158,8 +161,19 @@ class SeleniumServiceInterface(ServiceInterface):
 # ==========
 # Example code how inherited classes could be checked
 # ==========
+class DemoSeleniumServiceInterface(SeleniumServiceInterface):
+    def check_integrity(self, team: Team, tick: int) -> None:
+        pass
+
+    def store_flags(self, team: Team, tick: int) -> int | None:
+        pass
+
+    def retrieve_flags(self, team: Team, tick: int) -> int | None:
+        pass
+
+
 if __name__ == '__main__':
-    service = SeleniumServiceInterface(1)
+    service = DemoSeleniumServiceInterface(1)
     team = Team(1, 'localhost', '127.0.0.1')
     for tick in range(1, 4):
         ts = time.time()

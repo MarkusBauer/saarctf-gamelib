@@ -35,6 +35,8 @@ def get_services():
     services = []
     for folder in SYSTEMD_FOLDERS:
         for file in glob.glob(folder):
+            if file.endswith('.timer'):
+                continue
             name = os.path.basename(file).rsplit('.', 1)[0]
             if '@' in name:
                 arg = name.split('@')[1]
@@ -42,9 +44,16 @@ def get_services():
                 arg = ''
             with open(file, 'r') as f:
                 service = {'file': file, 'name': name}
+                collected_prefix = ''
                 for line in f.read().split('\n'):
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
+                    line = collected_prefix  + line.strip()
+                    if line and not line.startswith('#'):
+                        if line.endswith('\\'):
+                            collected_prefix = line[:-1]
+                            continue
+                        else:
+                            collected_prefix = ''
+                    if '=' in line:
                         k, v = line.split('=', 1)
                         v = v.replace('%i', arg)
                         k = k.strip()
@@ -58,12 +67,24 @@ def get_services():
     return services
 
 
+def ignore_service(service) -> bool:
+    if service['name'].startswith('systemd-'):
+        return True
+    if service['name'].startswith('getty'):
+        return True
+    if service['name'] in {'console-getty', 'remote-fs'}:
+        return True
+    return False
+
+
 def start_service(service):
+    if ignore_service(service):
+        print(f'Ignoring service "{service["name"]}"')
+        return
     print(f'Starting service "{service["name"]}" ({service["Description"]}) ...')
     for k, v in service.items():
         print(f'- {k}: {v}')
     opts = {'env': {k:v for k, v in os.environ.items()}}
-    cmd_prefix = []
     if 'WorkingDirectory' in service:
         opts['cwd'] = service['WorkingDirectory']
     if 'Environment' in service:
@@ -74,10 +95,10 @@ def start_service(service):
     uid = 0
     gid = 0
     if service.get('User', 'root') != 'root':
-        cmd_prefix = ['sudo', '-u', service['User']]
+        opts['user'] = service['User']
         uid = pwd.getpwnam(service['User']).pw_uid
         if 'Group' in service:
-            cmd_prefix += ['-g', service['Group']]
+            opts['group'] = service['Group']
             gid = grp.getgrnam(service['Group']).gr_gid
 
 
@@ -105,22 +126,26 @@ def start_service(service):
             if cmd[0] == '-':
                 MustSuccess = False
             cmd = cmd[1:]
-        cmd = cmd_prefix + shlex.split(cmd)
+        cmd = shlex.split(cmd)
         print(f'[Start pre] {cmd} {MustSuccess}')
-        subprocess.run(cmd, check=MustSuccess, timeout=15, **opts)
+        subprocess.run(cmd, shell=True, check=MustSuccess, timeout=15, **opts)
 
-    t = service.get('Type', 'simple')
-    cmd = service['ExecStart']
-    while cmd[0] in '+-!:@': cmd = cmd[1:]
-    cmd = cmd_prefix + shlex.split(cmd)
-    if t == 'simple' or t == 'exec' or t == 'oneshot' or t == 'notify':
-        print(f'[Start simple] {cmd}')
-        subprocess.Popen(cmd, **opts)
-    elif t == 'forking':
-        print(f'[Start forking] {cmd}')
-        subprocess.run(cmd, check=True, timeout=10, **opts)
+    if 'ExecStart' in service:
+        t = service.get('Type', 'simple')
+        cmd = service['ExecStart']
+        while cmd[0] in '+-!:@': cmd = cmd[1:]
+        # cmd = shlex.split(cmd)
+        if t == 'simple' or t == 'exec' or t == 'oneshot' or t == 'notify':
+            print(f'[Start simple] {cmd}')
+            print(opts)
+            subprocess.Popen(cmd, shell=True, **opts)
+        elif t == 'forking':
+            print(f'[Start forking] {cmd}')
+            subprocess.run(cmd, shell=True, check=True, timeout=10, **opts)
+        else:
+            raise Exception(f'Invalid service type: {t}')
     else:
-        raise Exception(f'Invalid service type: {t}')
+        print(f'[WARN] Cannot start service {repr(service["name"])}, no start command.')
 
 
 def main():

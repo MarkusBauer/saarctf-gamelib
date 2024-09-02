@@ -120,6 +120,9 @@ def run_checker(func, team, tick) -> Tuple[str, Optional[str]]:
         if 'Could not connect to' in e.args[0]:
             return 'OFFLINE', str(e.args[0])
         return 'CRASHED', None
+    except ConnectionError as e:
+        traceback.print_exc()
+        return 'OFFLINE', e.__class__.__name__
     except gamelib.OfflineException as e:
         traceback.print_exc()
         return 'OFFLINE', e.message

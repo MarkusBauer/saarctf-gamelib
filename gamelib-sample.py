@@ -7,13 +7,14 @@ from gamelib import *
 class SampleServiceInterface(ServiceInterface):
     name = 'SampleService'
 
-    def check_integrity(self, team, tick):
+    def check_integrity(self, team: Team, tick: int) -> None:
         try:
-            assert_requests_response(requests.get('http://{}:8000/'.format(team.ip)), 'text/html; charset=utf-8')
+            # use gamelib.Session() instead of plain requests!
+            assert_requests_response(Session().get(f'http://{team.ip}:8000/'), 'text/html; charset=utf-8')
         except IOError:
             raise OfflineException('Could not login')
 
-    def store_flags(self, team, tick):
+    def store_flags(self, team: Team, tick: int) -> int:
         username = usernames.generate_username()
         password = usernames.generate_password()
         self.store(team, tick, 'credentials', [username, password])
@@ -21,7 +22,7 @@ class SampleServiceInterface(ServiceInterface):
         try:
             flag = self.get_flag(team, tick, 1)
             response = assert_requests_response(
-                requests.post('http://{}:8000/register'.format(team.ip), data={'username': username, 'password': password, 'flag': flag}),
+                Session().post(f'http://{team.ip}:8000/register', data={'username': username, 'password': password, 'flag': flag}),
                 'text/html; charset=utf-8'
             )
             assert 'Flag stored!' in response.text
@@ -29,16 +30,16 @@ class SampleServiceInterface(ServiceInterface):
         except IOError:
             raise OfflineException('Could not register')
 
-    def retrieve_flags(self, team, tick):
+    def retrieve_flags(self, team: Team, tick: int) -> int:
         username, password = self.load(team, tick, 'credentials')
         try:
-            session = requests.Session()
+            session = Session()
             assert_requests_response(
-                session.post('http://{}:8000/login'.format(team.ip), data={'username': username, 'password': password}),
+                session.post(f'http://{team.ip}:8000/login', data={'username': username, 'password': password}),
                 'text/html; charset=utf-8'
             )
 
-            response = assert_requests_response(session.get('http://{}:8000/data'.format(team.ip)), 'text/html; charset=utf-8')
+            response = assert_requests_response(session.get(f'http://{team.ip}:8000/data'), 'text/html; charset=utf-8')
             # V1 - easy check for flag
             flag = self.get_flag(team, tick, 1)
             if flag not in response.text:
@@ -61,17 +62,25 @@ class SampleServiceInterface(ServiceInterface):
 if __name__ == '__main__':
     # TEST CODE
     team = Team(12, 'n00bs', '127.0.0.1')
-    tick = int(sys.argv[1]) if len(sys.argv) > 1 else 2
     service = SampleServiceInterface(7)
 
-    print('[1] Integrity check...')
-    service.check_integrity(team, tick)
-    print('Passed.')
+    if len(sys.argv) > 2 and sys.argv[2] == 'retrieve':
+        for tick in range(1, 10):
+            try:
+                service.retrieve_flags(team, tick)
+            except:
+                pass
+        sys.exit(0)
+    elif len(sys.argv) > 2 and sys.argv[2] == 'store':
+        for tick in range(50, 55):
+            try:
+                service.store_flags(team, tick)
+            except:
+                pass
+        sys.exit(0)
 
-    print('[2] Store flags...')
-    flags = service.store_flags(team, tick)
-    print('Done ({} flags).'.format(flags))
-
-    print('[3] Retrieve the flags in the next tick')
-    flags = service.retrieve_flags(team, tick)
-    print('Done ({} flags).'.format(flags))
+    for tick in range(1, 4):
+        print(f'\n\n=== TICK {tick} ===')
+        service.check_integrity(team, tick)
+        service.store_flags(team, tick)
+        service.retrieve_flags(team, tick)

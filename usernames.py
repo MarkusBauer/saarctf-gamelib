@@ -2,7 +2,7 @@ from __future__ import print_function, unicode_literals
 import random
 import string
 
-USERNAME_ADJECTIVES = [
+USERNAME_ADJECTIVES: list[str] = [
     'aback',
     'abaft',
     'abandoned',
@@ -1131,7 +1131,7 @@ USERNAME_ADJECTIVES = [
     'zealous'
 ]
 
-USERNAME_NOUNS = [
+USERNAME_NOUNS: list[str] = [
     'aardvark',
     'abacus',
     'abbey',
@@ -5687,40 +5687,40 @@ USERNAME_NOUNS = [
 ]
 
 
-def ucfirst(s):
+def ucfirst(s: str) -> str:
     return s[0].upper() + s[1:]
 
 
-def generate_name(words=2, camelcase=True, alphanum=True, generator=random, sep=''):
-    components = []
+def generate_name(words: int = 2, camelcase: bool = True, alphanum: bool = True, generator=random, sep: str = '') -> str:
+    components: list[str] = []
     for i in range(words - 1):
         components.append(generator.choice(USERNAME_ADJECTIVES))
     components.append(generator.choice(USERNAME_NOUNS))
     if camelcase:
-        components = map(ucfirst, components)
+        components = list(map(ucfirst, components))
     name = sep.join(components)
     if alphanum:
         name = name.replace('-', '')
     return name
 
 
-def generate_username(camelcase=True, alphanum=True, generator=random):
+def generate_username(camelcase: bool = True, alphanum: bool = True, generator=random) -> str:
     words = 3 if generator.randint(0, 100) < 90 else 2
     name = generate_name(words, camelcase, alphanum, generator=generator)
     return name + str(generator.randint(1, 9999))
 
 
-def generate_password(min_length=8, max_length=12):
+def generate_password(min_length: int = 8, max_length: int = 12) -> str:
     l = random.randint(min_length, max_length)
     return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(l))
 
 
-def generate_random_string(l=8, alphanum=True):
+def generate_random_string(l: int = 8, alphanum: bool = True) -> str:
     s = string.ascii_letters + string.digits if alphanum else string.ascii_letters
     return ''.join(random.choice(s) for _ in range(l))
 
 
-def generate_dummy_flag(size=32):
+def generate_dummy_flag(size: int = 32) -> str:
     return 'SAAR{' + ''.join(random.choice(string.ascii_letters + string.digits + '-_') for _ in range(size)) + '}'
 
 

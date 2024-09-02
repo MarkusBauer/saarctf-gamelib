@@ -16,7 +16,7 @@ useradd -m "$SERVICENAME"
 chmod 0750 "$INSTALL_DIR"
 
 # preload docker with systemctl replacement
-if detect-docker; then
+if detect-docker && [[ -z "${NO_DOCKER_SYSTEMD:-}" ]]; then
   cat - > /usr/local/bin/systemctl <<'EOF'
 #!/bin/sh
 set -eu
@@ -34,6 +34,8 @@ if [ "$1" = "enable" ]; then
     exit 1
   fi
 elif [ "$1" = "disable" ]; then
+  echo systemctl not present in Docker, ignored.
+elif [ "$1" = "set-environment" ]; then
   echo systemctl not present in Docker, ignored.
 else
   echo systemctl not present in Docker, error.
