@@ -18,5 +18,11 @@ else
   echo "Testing against $TARGET"
 fi
 
+# activate venv if necessary
+if [ -z ${VIRTUAL_ENV+x} ]; then
+  $SCRIPTPATH/make-checker-venv
+  source $SCRIPTPATH/../checker_venv/bin/activate
+fi
+
 cd "$SCRIPTPATH/.."
 python3 -u "$SCRIPTPATH/ci/testscripts/test-checkerscript.py" "$TARGET" "$@"

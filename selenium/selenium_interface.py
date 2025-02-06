@@ -2,7 +2,6 @@ import json
 import os
 import time
 from abc import ABC
-from typing import Optional, List
 
 from selenium import webdriver
 from selenium.webdriver import DesiredCapabilities
@@ -13,7 +12,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common import exceptions
 
-from .. import ServiceInterface, Team, TIMEOUT, OfflineException
+from .. import ServiceInterface, ServiceConfig, Team, TIMEOUT, OfflineException
 
 
 class ServiceWithTimeout(Service):
@@ -39,10 +38,10 @@ class SeleniumServiceInterface(ServiceInterface, ABC):
     blocked_urls: list[str] = []  # a list of url patterns that should not be accessed (example: "*/bootstrap.min.css")
     log_requested_urls: bool = False  # collect a log of all requests made by the browser. Call #print_selenium_logs at the end of your script to access.
 
-    def __init__(self, service_id: int) -> None:
-        super().__init__(service_id)
-        self.service: Optional[Service] = None
-        self.webdriver: Optional[WebDriver] = None
+    def __init__(self, config: ServiceConfig | None = None) -> None:
+        super().__init__(config)
+        self.service: Service | None = None
+        self.webdriver: WebDriver | None = None
 
     def initialize_team(self, team: Team) -> None:
         self.service = None
@@ -107,7 +106,7 @@ class SeleniumServiceInterface(ServiceInterface, ABC):
         print('[selenium] new webdriver', self.webdriver.name)
         return self.webdriver
 
-    def set_blocked_urls(self, driver: WebDriver, patterns: List[str]) -> None:
+    def set_blocked_urls(self, driver: WebDriver, patterns: list[str]) -> None:
         if self.webdriver is None:
             raise ValueError('Not initialized')
         params = {'cmd': 'Network.setBlockedURLs', 'params': {'urls': patterns}}
@@ -165,15 +164,15 @@ class DemoSeleniumServiceInterface(SeleniumServiceInterface):
     def check_integrity(self, team: Team, tick: int) -> None:
         pass
 
-    def store_flags(self, team: Team, tick: int) -> int | None:
+    def store_flags(self, team: Team, tick: int) -> None:
         pass
 
-    def retrieve_flags(self, team: Team, tick: int) -> int | None:
+    def retrieve_flags(self, team: Team, tick: int) -> None:
         pass
 
 
 if __name__ == '__main__':
-    service = DemoSeleniumServiceInterface(1)
+    service = DemoSeleniumServiceInterface()
     team = Team(1, 'localhost', '127.0.0.1')
     for tick in range(1, 4):
         ts = time.time()

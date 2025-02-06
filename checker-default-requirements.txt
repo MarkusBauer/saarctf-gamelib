@@ -1,0 +1,8 @@
+# default requirements for any checker/exploiter
+requests
+redis
+pwntools
+timeout_decorator
+numpy
+pycryptodome
+beautifulsoup4

@@ -6,7 +6,7 @@ import subprocess
 import sys
 from typing import List, Iterable
 
-from checker_utils import get_checker_class, basedir, run_checker, CHECKER_PACKAGES_PATH
+from checker_utils import get_checker_class, BASE_DIR, run_checker, CHECKER_PACKAGES_PATH
 
 
 def retrieve_some_flags(target: str, cls_id: int, team_id: int, ticks: Iterable[int]):
@@ -36,7 +36,7 @@ def main():
     print(f'Retrieving some flags from "{target}" (cls {cls_id}, team #{team_id}) ...')
 
     # Checker script is required to store flags in the service
-    if not os.path.exists(os.path.join(basedir, 'checkers', 'config')):
+    if not os.path.exists(os.path.join(BASE_DIR, 'checkers', 'config')):
         print('No checkerscript found. Create a file "config" in folder "checkers", content: "your-script-file.py:YourClassName".')
         sys.exit(1)
 

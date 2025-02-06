@@ -15,8 +15,6 @@ The basic template might look like this:
 from gamelib import *
 
 class YourServiceInterface(ServiceInterface):
-    name = '...'
-
     def check_integrity(self, team: Team, tick: int):
         assert 1 == 1, 'Calculation failed'
         ...
@@ -30,21 +28,27 @@ class YourServiceInterface(ServiceInterface):
 ```
 Every method should return (in case of success) or throw one of these gamelib exceptions to signal other states. 
 The message of these exceptions will be visible for teams.
-- `OfflineException` (or `requests.ConnectionError` / pwntools `Could not connect` error / `OSError no route to host`)
-- `MumbleException` (or `AssertionError`)
+- `OfflineException` (or the usual errors from `requests` and `pwntools.tubes` / `EOFError` / `TimeoutError` / `OSError no route to host`)
+- `MumbleException` (or `AssertionError`, `KeyError`, `ValueError`, `IndexError`, invalid HTTP exceptions from requests)
 - `FlagMissingException`
 
-Finally you need to configure the checkerscript - edit `/checkers/config` in your service repository, 
-it should contain one line formatted `your_script.py:YourClassName`.  
+Finally, you need to configure the checkerscript - edit `/checkers/config.toml` in your service repository. 
+
+
+Testing your Checkers
+---------------------
+Run `gamelib/run-checkers` in your root directory. Optionally, you can add an IP address to test against.
+
+This script creates a Python venv for you, unless you're already in one.
 
 
 Guidelines
 ----------
-- Write Python 3 (gameserver uses Python 3.10+)
+- Write Python 3 (gameserver uses Python 3.11+)
 - You should only throw the `gamelib` exceptions - with everything other exception we will consider your script as "crashed".
   - also allowed: requests & pwntools builtins, `ConnectionResetError`, `AssertionError`
 - Care about I/O:
-  - Use the provided I/O wrappers whenever possible (`with remote_connection() as conn`, `gamelib.Session()`)
+  - Use the provided I/O wrappers whenever possible (`with remote_connection() as conn` for raw TCP, `gamelib.Session()` for HTTP/S)
   - If not possible: 
     - use a timeout (for example: `gamelib.TIMEOUT` seconds)
     - ensure all connections are closed (`try finally` is the choice here)
@@ -80,17 +84,14 @@ def store_flags(self, team: Team, tick: int):
     self.store(team, tick, 'credentials', [username, password])
 
 def retrieve_flags(self, team: Team, tick: int):
-    try:
-        username, password = self.load(team, tick, 'credentials')
-    except TypeError:
-        raise FlagNotFoundException('Flag not stored')  # self.store didn't run last tick
+    username, password = self.load_or_flagmissing(team, tick, 'credentials')
 ```
 
 
 Useful methods
 --------------
 The ServiceInterface contains more useful methods, for example to find flags in text or parse flags.
-There's also `assert_requests_response` to check the return code and type of a request. 
+There's also `assert_requests_response` to check the return code and content type of HTTP responses. 
 The `usernames` module contains useful functions to generate random usernames, passwords, names flags or strings.
 Check out the source code for documentation. 
 
@@ -111,7 +112,8 @@ def store_flags(self, team: Team, tick: int):
     flags = [self.get_flag(team, tick, tick % 3), self.get_flag(team, tick, 3)]
 ```
 
-Please document your choice somewhere, it needs to be configured when importing your service in the gameserver.
+You must set the number of flags per tick and the number of payloads in your `config.toml`.
+The CI checks for this.
  
  
 Flag IDs
@@ -120,14 +122,14 @@ Flag IDs are strings that are given to the players and can be used to identify c
 They can be used to simulate usernames etc. that will be known for attackers.
 Flag IDs are completely optional and usually not needed.
  
-To use flag IDs in your service first configure their types in a global variable `flag_id_types`. 
+To use flag IDs in your service you have to configure their types in your `config.toml`, key `flag_ids`. 
 Then use `self.get_flag_id` to get identifiers of the registered type. 
 
+```toml
+flag_ids = ['username', 'hex12', 'alphanum15']
+```
 ```python
 class YourServiceInterface(ServiceInterface):
-    name = '...'
-    flag_id_types = ['username', 'hex12', 'alphanum15']
-
     def store_flags(self, team: Team, tick: int):
         username1 = self.get_flag_id(team, tick, 0)  # a valid-looking username
         flag1 = self.get_flag(team, tick, 0)
@@ -137,17 +139,24 @@ class YourServiceInterface(ServiceInterface):
         flag3 = self.get_flag(team, tick, 2)
 ```
 
-Please inform organisators in time if you use flag IDs, they might need to update the website description.    
+We prefer gamelib-generated flag IDs. 
+However, you can generate the flag ID in your checker script if necessary, e.g., publish a service-generated ID.
+These will be published in the tick after you generated them.
+To do so, use the special flag ID type `custom` and the checker script method `set_flag_id`:
+```python
+class FlagIDService(ServiceInterface):
+	def store_flags(self, team: Team, tick: int) -> None:
+		self.set_flag_id(team, tick, 0, ...)  # ... will be published next tick
+	def retrieve_flags(self, team: Team, tick: int) -> None:
+		self.get_flag_id(team, tick, 0)  # raises FlagMissingException if not found
+```
 
 
 Additional Dependencies
 -----------------------
-If you need additional software to run your checkerscript (python modules, system packages) you can install them in your service's `dependencies.sh`. 
-
-1. Please check first if the package you need is already preinstalled. 
-2. Then check if the package can be installed from Debian Bookworm's repository (using `apt`). 
-   These packages are usually more stable and don't change that often.
-3. If not, you can freely use `python3 -m pip install`. 
+If you need additional software to run your checkerscript you can request:
+- python dependencies in `checker-requirements.txt` in your root directory.
+- system dependencies in `dependencies.sh` (from Debian Trixie, use `apt`).
 
 We have preinstalled (at least): 
 - Python3 with pip
@@ -157,5 +166,4 @@ We have preinstalled (at least):
 - numpy
 - pycryptodome
 - beautifulsoup4
-- pytz
 

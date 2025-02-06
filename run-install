@@ -26,5 +26,5 @@ touch "$SCRIPTPATH/../docker-container-infos.txt"
 cd "$SCRIPTPATH/.."
 docker build -t "saarsec/$SERVICENAME" -f "$SCRIPTPATH/ci/InstallLocal.Dockerfile" .
 
-echo "[*] Created docker image \"saarsec/$SERVICENAME:latest\" - use \"docker-compose up\" to run."
+echo "[*] Created docker image \"saarsec/$SERVICENAME:latest\" - use \"docker compose up\" to run."
 echo "    After startup you can find its IP in ./docker-container-infos.txt"

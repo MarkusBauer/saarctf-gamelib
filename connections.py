@@ -1,16 +1,18 @@
 import os
+import random
 from contextlib import contextmanager
-from typing import Generator, Any
+from pathlib import Path
+from typing import Generator, Any, ClassVar
 
 import requests
+
 try:
     os.environ['PWNLIB_NOTERM'] = '1'
-    from pwnlib.tubes.tube import tube
-    from pwnlib.tubes.remote import remote
+    from pwnlib.tubes.tube import tube  # type: ignore
+    from pwnlib.tubes.remote import remote  # type: ignore
 except ImportError:
     print('pwntools not available!')
     tube = Any
-
 
 # default timeout for a single connection
 TIMEOUT = 7
@@ -24,7 +26,16 @@ class Session(requests.Session):
     response = session.get(...)
     """
 
-    def request(self, method: str, url: str, **kwargs) -> requests.Response:
+    user_agents: ClassVar[list[str] | None] = None
+
+    def __init__(self):
+        super().__init__()
+        if self.user_agents is None:
+            self._load_user_agents()
+        if len(self.user_agents) > 0:
+            self.headers['User-Agent'] = random.choice(self.user_agents)
+
+    def request(self, method: str | bytes, url: str | bytes, *args: Any, **kwargs: Any) -> requests.Response:
         if 'timeout' not in kwargs:
             kwargs['timeout'] = TIMEOUT
 
@@ -33,14 +44,25 @@ class Session(requests.Session):
             opts = {}
             if 'params' in kwargs:
                 opts['params'] = kwargs['params']
-            print(f'> {method} {url} {opts}')
+            print(f'> {method!s} {url!s} {opts}')
 
-        response = super().request(method, url, **kwargs)
+        response = super().request(method, url, *args, **kwargs)
 
         if not silent:
             print(f'< [{response.status_code}] {len(response.content)} bytes')
 
         return response
+
+    @classmethod
+    def _load_user_agents(cls) -> None:
+        agents = []
+        for path in (Path('user-agents.txt'), Path.home() / 'user-agents.txt', Path('/usr/share/user-agents.txt')):
+            try:
+                agents = [a.strip() for a in path.read_text().split('\n') if a.strip()]
+                break
+            except (FileNotFoundError, PermissionError):
+                pass
+        cls.user_agents = agents
 
 
 @contextmanager

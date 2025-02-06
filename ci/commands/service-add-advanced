@@ -8,6 +8,13 @@ set -eu
 
 SERVICESUFFIX="${SERVICESUFFIX:-}"
 
+CUSTOM_CONFIG=$(cat -)
+
+OPTIONAL_CONFIG=""
+if [[ $CUSTOM_CONFIG != *"CPUQuota"* ]]; then
+  OPTIONAL_CONFIG="CPUQuota=50%"
+fi
+
 cat << EOF > /etc/systemd/system/$SERVICENAME$SERVICESUFFIX.service
 [Unit]
 Description=$3
@@ -20,11 +27,9 @@ WorkingDirectory=$2
 User=$SERVICENAME
 Group=$SERVICENAME
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-EOF
+$OPTIONAL_CONFIG
+$CUSTOM_CONFIG
 
-cat - >> /etc/systemd/system/$SERVICENAME$SERVICESUFFIX.service
-
-cat << EOF >> /etc/systemd/system/$SERVICENAME$SERVICESUFFIX.service
 [Install]
 WantedBy=multi-user.target
 EOF

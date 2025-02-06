@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -e
+
+SCRIPTPATH="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
+cd "$SCRIPTPATH/.."
+
+if [ ! -d checker_venv ]; then
+  python3 -m venv checker_venv
+fi
+. checker_venv/bin/activate
+pip install -r ./checker-requirements.txt -r $SCRIPTPATH/checker-default-requirements.txt

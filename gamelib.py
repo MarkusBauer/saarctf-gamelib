@@ -1,22 +1,25 @@
 """
 Library for GameserverScript developers. Inherit ServiceInterface.
-
-This file is intentionally without type annotations, to allow script devs to work with older versions of Python (3).
 """
 
 import hmac
 import hashlib
 import base64
+import inspect
 import json
 import re
 import struct
 import os
+import tomllib
 from abc import ABC, abstractmethod
-from typing import List, Any, Optional, Tuple, Set
+from dataclasses import dataclass, field, fields
+from pathlib import Path
+from typing import Any
 
 import requests
 
 from . import flag_ids
+from .exceptions import FlagMissingException
 
 try:
     from saarctf_commons.config import config
@@ -26,6 +29,7 @@ except ImportError:
     # These values / methods will later be defined by the server-side configuration
     class config:  # type: ignore[no-redef]
         SECRET_FLAG_KEY: bytes = b'\x00' * 32  # type: ignore
+
 
     import redis
 
@@ -42,52 +46,44 @@ FLAG_LENGTH = 24
 FLAG_REGEX = re.compile(r'SAAR{[A-Za-z0-9-_]{' + str(FLAG_LENGTH // 3 * 4) + '}}')
 
 
-class FlagMissingException(Exception):
-    """
-    Service is working, but flag could not be retrieved
-    """
-
-    def __init__(self, message: str) -> None:
-        self.message = message
-
-    def __str__(self) -> str:
-        return str(self.message)
-
-
-class MumbleException(AssertionError):
-    """
-    Service is online, but behaving unexpectedly (dropping data, returning wrong answers, ...). AssertionError is also valid.
-    """
-
-    def __init__(self, message: str) -> None:
-        self.message = message
-
-    def __str__(self) -> str:
-        return str(self.message)
-
-
-class OfflineException(Exception):
-    """
-    Service is not reachable / connections get dropped or interrupted
-    """
-
-    def __init__(self, message: str) -> None:
-        self.message = message
-
-    def __str__(self) -> str:
-        return str(self.message)
-
-
+@dataclass
 class Team:
-    def __init__(self, _id: int, name: str, ip: str) -> None:
-        """
-        :param int _id: database team id
-        :param str name: team name
-        :param str ip: vulnbox ip
-        """
-        self.id = _id
-        self.name = name  # don't rely on name - it might be dropped
-        self.ip = ip
+    id: int  # database team ID
+    name: str  # don't rely on name - it might be dropped
+    ip: str  # Vulnbox IP
+
+
+@dataclass
+class ServiceConfig:
+    name: str
+    interface_file: str
+    interface_class: str
+    # Set this one in your inherited class if you need FlagIDs.
+    # Possible values: 'username', 'hex<number>', 'alphanum<number>', 'email', 'pattern:${username}/constant_string/${hex12}'
+    flag_ids: list[str] = field(default_factory=list)
+    ports: list[str] = field(default_factory=list)  # "tcp:1234"
+    num_payloads: int = 1
+    flags_per_tick: float = 1
+    service_id: int = 1
+
+    @classmethod
+    def from_file(cls, filename: str | Path) -> 'ServiceConfig':
+        return cls.from_dict(tomllib.loads(Path(filename).read_text()))
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'ServiceConfig':
+        return cls(**{field.name: d[field.name] for field in fields(cls) if field.name in d})  # type: ignore
+
+    def to_dict(self) -> dict[str, Any]:
+        return {field.name: getattr(self, field.name) for field in fields(self.__class__)}  # type: ignore
+
+    def with_params(self, **kwargs: Any) -> 'ServiceConfig':
+        return self.__class__(**(self.to_dict() | kwargs))  # type: ignore
+
+    def __post_init__(self) -> None:
+        for flag_id in self.flag_ids:
+            if ',' in flag_id:
+                raise ValueError('Flag IDs with , are not supported')
 
 
 class ServiceInterface(ABC):
@@ -100,15 +96,11 @@ class ServiceInterface(ABC):
     - Make server-side data persistent (store them to Redis)
     """
 
-    # Set this one in your inherited class
-    name: str = '?'
-
-    # Set this one in your inherited class if you need FlagIDs.
-    # Possible values: 'username', 'hex<number>', 'alphanum<number>', 'email', 'pattern:${username}/constant_string/${hex12}'
-    flag_id_types: List[str] = []
-
-    def __init__(self, service_id: int) -> None:
-        self.id = service_id
+    def __init__(self, config: ServiceConfig | None = None) -> None:
+        if config is None:
+            config = ServiceConfig.from_file(Path(inspect.getfile(self.__class__)).parent / 'config.toml')
+        self.id = config.service_id
+        self.config: ServiceConfig = config
 
     @abstractmethod
     def check_integrity(self, team: Team, tick: int) -> None:
@@ -124,7 +116,7 @@ class ServiceInterface(ABC):
         raise Exception('Override me')
 
     @abstractmethod
-    def store_flags(self, team: Team, tick: int) -> int | None:
+    def store_flags(self, team: Team, tick: int) -> None:
         """
         Send one or multiple flags to a given team. You can perform additional functionality checks here.
         :param Team team:
@@ -137,7 +129,7 @@ class ServiceInterface(ABC):
         raise Exception('Override me')
 
     @abstractmethod
-    def retrieve_flags(self, team: Team, tick: int) -> int | None:
+    def retrieve_flags(self, team: Team, tick: int) -> None:
         """
         Retrieve all flags stored in a previous tick from a given team. You can perform additional functionality checks here.
         :param Team team:
@@ -177,7 +169,8 @@ class ServiceInterface(ABC):
         :param any value:
         :return:
         """
-        get_redis_connection().set('services:' + self.name + ':' + str(team.id) + ':' + str(tick) + ':' + key, json.dumps(value))
+        with get_redis_connection() as redis_conn:
+            redis_conn.set('services:' + self.config.name + ':' + str(team.id) + ':' + str(tick) + ':' + key, json.dumps(value))
 
     def load(self, team: Team, tick: int, key: str) -> Any:
         """
@@ -187,9 +180,16 @@ class ServiceInterface(ABC):
         :param str key:
         :return: the previously stored value, or None
         """
-        value = get_redis_connection().get('services:' + self.name + ':' + str(team.id) + ':' + str(tick) + ':' + key)
+        with get_redis_connection() as redis_conn:
+            value = redis_conn.get('services:' + self.config.name + ':' + str(team.id) + ':' + str(tick) + ':' + key)
         if value is not None:
             return json.loads(value.decode('utf-8'))
+        return value
+
+    def load_or_flagmissing(self, team: Team, tick: int, key: str) -> Any:
+        value = self.load(team, tick, key)
+        if value is None:
+            raise FlagMissingException('Flag never stored')
         return value
 
     def get_flag(self, team: Team, tick: int, payload: int = 0) -> str:
@@ -206,8 +206,8 @@ class ServiceInterface(ABC):
         flag = base64.b64encode(data + mac).replace(b'+', b'-').replace(b'/', b'_')
         return 'SAAR{' + flag.decode('utf-8') + '}'
 
-    def check_flag(self, flag: str, check_team_id: Optional[int] = None, check_stored_tick: Optional[int] = None) \
-        -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
+    def check_flag(self, flag: str, check_team_id: int | None = None, check_stored_tick: int | None = None) \
+        -> tuple[int | None, int | None, int | None, int | None]:
         """
         Check if a given flag is valid for this service, and returns the components (team-id, service-id, the tick it
         has been set and the payload bytes).
@@ -219,7 +219,7 @@ class ServiceInterface(ABC):
         :param int|None check_team_id: Check if the flag is from this team
         :param int|None check_stored_tick: Check if the flag has been stored in the given tick
         :rtype: (int, int, int, int)
-        :return: Tuple (teamid, serviceid, stored_tick, payload) or (None, None, None, None) if flag is invalid
+        :return: tuple (teamid, serviceid, stored_tick, payload) or (None, None, None, None) if flag is invalid
         """
         if flag[:5] != 'SAAR{' or flag[-1] != '}':
             print('Flag "{}": invalid format'.format(flag))
@@ -245,7 +245,7 @@ class ServiceInterface(ABC):
             return (None, None, None, None)
         return teamid, serviceid, stored_tick, payload
 
-    def search_flags(self, text: str) -> Set[str]:
+    def search_flags(self, text: str) -> set[str]:
         """
         Find all flags in a given string (no validation is done)
         :param str text:
@@ -263,7 +263,21 @@ class ServiceInterface(ABC):
         :param int index:
         :return:
         """
-        return flag_ids.generate_flag_id(self.flag_id_types[index], self.id, team.id, tick, index, **kwargs)
+        flag_id_type = self.config.flag_ids[index]
+        if flag_id_type == 'custom':
+            with get_redis_connection() as redis_conn:
+                flag_id = redis_conn.get(f'custom_flag_ids:{self.config.service_id}:{tick}:{team.id}:{index}')
+                if flag_id is None:
+                    raise FlagMissingException('Flag ID never generated')
+                return flag_id
+
+        return flag_ids.generate_flag_id(flag_id_type, self.id, team.id, tick, index, **kwargs)
+
+    def set_flag_id(self, team: Team, tick: int, index: int, value: str) -> None:
+        if self.config.flag_ids[index] != 'custom':
+            raise Exception('Cannot store into a non-custom flag ID')
+        with get_redis_connection() as redis_conn:
+            redis_conn.set(f'custom_flag_ids:{self.config.service_id}:{tick}:{team.id}:{index}', value)
 
 
 # === Assertion methods ===

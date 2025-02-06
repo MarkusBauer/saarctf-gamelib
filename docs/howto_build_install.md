@@ -109,10 +109,12 @@ We have examples for:
 - [Go Binary](#go-binary)
 - [Go Application with sources](#go-application-with-sources)
 - [Java / Kotlin with Gradle](#java-kotlin-with-gradle)
+- [MariaDB / MySQL](#mariadb-mysql)
 - [MongoDB](#mongodb)
 - [NPM build for frontend](#npm-build-for-frontend)
 - [NPM / NodeJS server](#npm-nodejs-server)
 - [PHP with nginx/php-fpm](#php-with-nginxphp-fpm)
+- [Python with venv](#python-with-venv)
 - [Python/Django with uwsgi](#pythondjango-with-uwsgi)
 - [PostgreSQL](#postgresql)
 - [Rust Binary](#rust-binary)
@@ -340,6 +342,44 @@ EOF
 ```
 
 
+### MariaDB / MySQL
+Install MariaDB (free MySQL variant) and create a user + database for your service.
+Try to connect to the unix socket with peer authentication, so that you have no default password and no cross-service vulnerability.
+```shell
+apt-get update
+apt-get install -y mariadb-server mariadb-client
+
+# ... your other setup code
+
+
+# 5. Startup database (CI DOCKER ONLY, not on vulnbox)
+if detect-docker; then
+    # docker hack for mariadb
+    mkdir -p /run/mysqld
+    chown mysql:mysql /run/mysqld
+    /usr/sbin/mariadbd -u mysql &
+    MARIADB_PID=$!
+    while [ ! -e /run/mysqld/mysqld.sock ];
+    do
+        sleep .5 # give db time to start...
+    done
+fi
+
+# 6. Create user/database
+mariadb <<EOF
+CREATE USER '$SERVICENAME' IDENTIFIED VIA unix_socket;
+CREATE DATABASE $SERVICENAME;
+GRANT ALL ON $SERVICENAME.* TO '$SERVICENAME';
+EOF
+
+# 7 Stop services (CI DOCKER ONLY)
+if detect-docker; then
+    kill $MARIADB_PID
+fi
+
+```
+
+
 ### MongoDB
 Installing a non-ancient MongoDB is not easy, we need a third-party repository. 
 To secure access to MongoDB you can either use a socket and set its permissions (if your client permits) or use iptables to limit access.
@@ -495,6 +535,29 @@ MemoryMax=1024M
 LimitNPROC=1024
 EOF
 ```
+
+
+
+### Python with venv
+Python services should, in general, install their dependencies in their own virtual environment.
+To do this, write an `install.sh` like this:
+```shell
+# 1. Install dependencies
+apt-get update
+apt install -y python3 python3-pip python3-virtualenv python3-venv
+
+# ...
+
+# 3. venv
+python3 -m venv $INSTALL_DIR/venv
+. $INSTALL_DIR/venv/bin/activate
+pip install -r $INSTALL_DIR/requirements.txt
+
+# 4. Configure startup for your service
+service-add-simple "$INSTALL_DIR/venv/bin/python your-script.py" "$INSTALL_DIR" "your-description"
+```
+
+If you're writing a HTTP using frameworks like flask or Django, you'll likely want to install `gunicorn` in your venv and use it to serve your application.
 
 
 

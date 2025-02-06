@@ -5,8 +5,6 @@ from gamelib import *
 
 
 class SampleServiceInterface(ServiceInterface):
-    name = 'SampleService'
-
     def check_integrity(self, team: Team, tick: int) -> None:
         try:
             # use gamelib.Session() instead of plain requests!
@@ -14,7 +12,7 @@ class SampleServiceInterface(ServiceInterface):
         except IOError:
             raise OfflineException('Could not login')
 
-    def store_flags(self, team: Team, tick: int) -> int:
+    def store_flags(self, team: Team, tick: int) -> None:
         username = usernames.generate_username()
         password = usernames.generate_password()
         self.store(team, tick, 'credentials', [username, password])
@@ -26,11 +24,10 @@ class SampleServiceInterface(ServiceInterface):
                 'text/html; charset=utf-8'
             )
             assert 'Flag stored!' in response.text
-            return 1
         except IOError:
             raise OfflineException('Could not register')
 
-    def retrieve_flags(self, team: Team, tick: int) -> int:
+    def retrieve_flags(self, team: Team, tick: int) -> None:
         username, password = self.load(team, tick, 'credentials')
         try:
             session = Session()
@@ -54,7 +51,6 @@ class SampleServiceInterface(ServiceInterface):
                 # not the flag we're looking for
                 raise FlagMissingException("Flag not found")
 
-            return 1
         except IOError:
             raise OfflineException('Could not login')
 
@@ -62,7 +58,7 @@ class SampleServiceInterface(ServiceInterface):
 if __name__ == '__main__':
     # TEST CODE
     team = Team(12, 'n00bs', '127.0.0.1')
-    service = SampleServiceInterface(7)
+    service = SampleServiceInterface()
 
     if len(sys.argv) > 2 and sys.argv[2] == 'retrieve':
         for tick in range(1, 10):
