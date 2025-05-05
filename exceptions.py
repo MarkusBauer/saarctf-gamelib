@@ -1,6 +1,8 @@
 import traceback
 from contextlib import contextmanager
-from typing import Iterator, Callable
+from typing import Iterator, Callable, TypeVar
+
+T = TypeVar('T')
 
 
 class CheckerException(Exception):
@@ -70,7 +72,7 @@ def translate_checker_exceptions() -> Iterator[None]:
         raise
 
 
-def handle_checker_exceptions(c: Callable[[], tuple[str, str | None] | None]) -> tuple[str, str | None]:
+def handle_checker_exceptions(c: Callable[[], T]) -> T | tuple[str, str | None]:
     try:
         with translate_checker_exceptions():
             result = c()

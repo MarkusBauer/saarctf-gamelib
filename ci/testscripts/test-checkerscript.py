@@ -4,6 +4,7 @@ import math
 import random
 import time
 import urllib.parse
+import requests
 
 from checker_utils import *
 from gamelib import flag_ids
