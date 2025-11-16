@@ -3,6 +3,7 @@ import hmac
 import random
 import re
 import string
+from typing import Any
 
 try:
     from saarctf_commons.config import config
@@ -18,7 +19,7 @@ def generate_flag_id(
     team_id: int,
     tick: int,
     index: int = 0,
-    **kwargs,
+    **kwargs: Any,
 ) -> str:
     """
     Generate FlagID for a flag stored in a given tick at a given team and service.
@@ -35,12 +36,13 @@ def generate_flag_id(
     return generate_flag_id_rnd(flag_id_type, rnd, **kwargs)
 
 
-def generate_flag_id_rnd(flag_id_type: str, rnd: random.Random, **kwargs) -> str:
+def generate_flag_id_rnd(flag_id_type: str, rnd: random.Random, **kwargs: Any) -> str:
     """
     Generate a flag id. Available types:
 
     username: A username
       Example: "username" -> "AbsentOrganicInlaws3828"
+      Example: "username:lower" -> "absentorganicinlaws3828"
     hex<len>: hex chars (lowercase and digit). len in DECIMAL:
       Example: "hex10" -> "36b43798b7"
     alphanum<len>: Lowercase, uppercase, digit
@@ -52,11 +54,12 @@ def generate_flag_id_rnd(flag_id_type: str, rnd: random.Random, **kwargs) -> str
     pattern:<pattern>: Combine all other types in a pattern
       Example: "pattern:${hex4}_${username}" -> "cd3b_BewilderedAlcoholicBamboo2250"
     """
-    if flag_id_type == "username":
+    if flag_id_type.startswith("username"):
         # conditional import because the file is massive
         from . import usernames
 
-        return usernames.generate_username(generator=rnd, **kwargs)
+        camelcase = ':lower' not in flag_id_type
+        return usernames.generate_username(generator=rnd, camelcase=camelcase, **kwargs)
     elif flag_id_type.startswith("hex"):
         length = int(flag_id_type.removeprefix("hex"))
         return "".join(rnd.choices(string.digits + "abcde", k=length))

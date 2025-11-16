@@ -9,6 +9,7 @@ import traceback
 import signal
 import pwd
 import grp
+import shlex
 
 
 SYSTEMD_FOLDERS = [
@@ -34,7 +35,7 @@ def run_generators():
 def get_services():
     services = []
     for folder in SYSTEMD_FOLDERS:
-        for file in glob.glob(folder):
+        for file in sorted(glob.glob(folder)):
             if file.endswith('.timer'):
                 continue
             name = os.path.basename(file).rsplit('.', 1)[0]
@@ -57,7 +58,7 @@ def get_services():
                         k, v = line.split('=', 1)
                         v = v.replace('%i', arg)
                         k = k.strip()
-                        if k == 'Environment':
+                        if k in ('Environment', 'After'):
                             if k not in service:
                                 service[k] = []
                             service[k].append(v.strip())
@@ -65,6 +66,24 @@ def get_services():
                             service[k] = v.strip()
                 services.append(service)
     return services
+
+
+def order_services(services: list) -> list:
+    scheduled_things = set()
+    available_things = set(os.path.basename(service['file']) for service in services)
+    backlog = []
+    schedule = []
+    while len(services) > 0:
+        for service in services:
+            if 'After' in service and any(a in available_things and a not in scheduled_things for a in service['After']):
+                backlog.append(service)
+            else:
+                schedule.append(service)
+                scheduled_things.add(os.path.basename(service['file']))
+        services = backlog
+        backlog = []
+
+    return schedule
 
 
 def ignore_service(service) -> bool:
@@ -75,6 +94,14 @@ def ignore_service(service) -> bool:
     if service['name'] in {'console-getty', 'remote-fs'}:
         return True
     return False
+
+
+def parse_env(line: str) -> dict[str, str]:
+    opts = {}
+    for x in shlex.split(line):
+        a, b = x.split('=', 1)
+        opts[a] = b
+    return opts
 
 
 def start_service(service):
@@ -89,9 +116,7 @@ def start_service(service):
         opts['cwd'] = service['WorkingDirectory']
     if 'Environment' in service:
         for line in service['Environment']:
-            for x in line.split(' '):
-                a, b = x.split('=', 1)
-                opts['env'][a] = b
+            opts['env'] |= parse_env(line)
     uid = 0
     gid = 0
     if service.get('User', 'root') != 'root':
@@ -100,6 +125,9 @@ def start_service(service):
         if 'Group' in service:
             opts['group'] = service['Group']
             gid = grp.getgrnam(service['Group']).gr_gid
+            if 'SupplementaryGroups' in service:
+                # might be specified multiple times. we support only once for now (multiple groups space separated)
+                opts['extra_groups'] = service['SupplementaryGroups'].split(' ')
 
 
     # runtime directories
@@ -128,7 +156,7 @@ def start_service(service):
             cmd = cmd[1:]
         cmd = shlex.split(cmd)
         print(f'[Start pre] {cmd} {MustSuccess}')
-        subprocess.run(cmd, shell=True, check=MustSuccess, timeout=15, **opts)
+        subprocess.run(cmd, shell=True, check=MustSuccess, timeout=20, **opts)
 
     if 'ExecStart' in service:
         t = service.get('Type', 'simple')
@@ -147,12 +175,24 @@ def start_service(service):
     else:
         print(f'[WARN] Cannot start service {repr(service["name"])}, no start command.')
 
+    if 'ExecStartPost' in service:
+        cmd = service['ExecStartPost']
+        MustSuccess = True
+        while cmd[0] in '+-!:@':
+            if cmd[0] == '-':
+                MustSuccess = False
+            cmd = cmd[1:]
+        # cmd = shlex.split(cmd)  # bugfix: not splitting fixes special chars within ''
+        print(f'[Start post] {cmd} {MustSuccess}')
+        subprocess.run(cmd, shell=True, check=MustSuccess, timeout=20, **opts)
+
 
 def main():
     start_mode = len(sys.argv) > 2 and sys.argv[1] == 'start'
 
     run_generators()
     services = get_services()
+    services = order_services(services)
 
     if start_mode:
         services = [s for s in services if s['name'] in sys.argv[2:]]
@@ -178,4 +218,5 @@ def terminate(signal, frame):
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, terminate)
     signal.signal(signal.SIGTERM, terminate)
+    signal.signal(signal.SIGCHLD, signal.SIG_IGN)  # reap zombies
     main()

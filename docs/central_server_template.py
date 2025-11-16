@@ -11,6 +11,7 @@ import redis
 SERVICE_TOKEN_SECRET = 'abcdefgh'
 
 # === try to load the gameserver's config file ===
+# TODO adjust loading and yaml parsing (if we ever need this again)
 if 'SAARCTF_CONFIG_DIR' in os.environ:
     basedir = os.path.abspath(os.environ['SAARCTF_CONFIG_DIR'])
 else:
@@ -131,7 +132,7 @@ class GameStatus:
 
 # === Your code ===
 
-def main():
+def main() -> None:
     # status = GameStatus()
     # print(status.state, status.currentTick)
     ...

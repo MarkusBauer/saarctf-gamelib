@@ -2,6 +2,7 @@ import json
 import os
 import time
 from abc import ABC
+from typing import Any
 
 from selenium import webdriver
 from selenium.webdriver import DesiredCapabilities
@@ -20,7 +21,8 @@ class ServiceWithTimeout(Service):
     Selenium service, with the connector wrapped for timeout reasons
     """
 
-    def __init__(self, executable_path: str, port: int = 0, service_args=None, log_path=None, env=None, timeout: int = 60) -> None:
+    def __init__(self, executable_path: str, port: int = 0, service_args: Any = None, log_path: Any = None, env: Any = None,
+                 timeout: int = 60) -> None:
         wrapper = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'selenium_wrapper')
         super().__init__(wrapper, port, service_args, log_path, env)
         self.prefix: list[str] = [str(timeout), executable_path]

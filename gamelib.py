@@ -13,6 +13,7 @@ import os
 import tomllib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, fields
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ except ImportError:
     # These values / methods will later be defined by the server-side configuration
     class config:  # type: ignore[no-redef]
         SECRET_FLAG_KEY: bytes = b'\x00' * 32  # type: ignore
+        FLAG_PREFIX: str = 'SAAR'
 
 
     import redis
@@ -43,7 +45,17 @@ except ImportError:
 # determines size of the flag
 MAC_LENGTH = 16
 FLAG_LENGTH = 24
-FLAG_REGEX = re.compile(r'SAAR{[A-Za-z0-9-_]{' + str(FLAG_LENGTH // 3 * 4) + '}}')
+
+@lru_cache(1)
+def get_flag_regex() -> re.Pattern:
+    return re.compile(config.FLAG_PREFIX + r'{[A-Za-z0-9-_]{' + str(FLAG_LENGTH // 3 * 4) + '}}')
+
+
+def get_flag(team_id: int, service_id: int, tick: int, payload: int = 0) -> str:
+    data = struct.pack('<HHHH', tick & 0xffff, team_id, service_id & 0xffff, payload)
+    mac = hmac.new(config.SECRET_FLAG_KEY, data, hashlib.sha256).digest()[:MAC_LENGTH]
+    flag = base64.b64encode(data + mac).replace(b'+', b'-').replace(b'/', b'_')
+    return config.FLAG_PREFIX + '{' + flag.decode('utf-8') + '}'
 
 
 @dataclass
@@ -201,10 +213,7 @@ class ServiceInterface(ABC):
         :rtype: str
         :return: the flag
         """
-        data = struct.pack('<HHHH', tick & 0xffff, team.id, self.id, payload)
-        mac = hmac.new(config.SECRET_FLAG_KEY, data, hashlib.sha256).digest()[:MAC_LENGTH]
-        flag = base64.b64encode(data + mac).replace(b'+', b'-').replace(b'/', b'_')
-        return 'SAAR{' + flag.decode('utf-8') + '}'
+        return get_flag(team.id, self.id, tick, payload)
 
     def check_flag(self, flag: str, check_team_id: int | None = None, check_stored_tick: int | None = None) \
         -> tuple[int | None, int | None, int | None, int | None]:
@@ -221,7 +230,7 @@ class ServiceInterface(ABC):
         :rtype: (int, int, int, int)
         :return: tuple (teamid, serviceid, stored_tick, payload) or (None, None, None, None) if flag is invalid
         """
-        if flag[:5] != 'SAAR{' or flag[-1] != '}':
+        if flag[:5] != config.FLAG_PREFIX + '{' or flag[-1] != '}':
             print('Flag "{}": invalid format'.format(flag))
             return (None, None, None, None)
         data = base64.b64decode(flag[5:-1].replace('_', '/').replace('-', '+'))
@@ -251,9 +260,9 @@ class ServiceInterface(ABC):
         :param str text:
         :return: a (possibly empty) set of all flags contained in the input
         """
-        return set(FLAG_REGEX.findall(text))
+        return set(get_flag_regex().findall(text))
 
-    def get_flag_id(self, team: Team, tick: int, index: int = 0, **kwargs) -> str:
+    def get_flag_id(self, team: Team, tick: int, index: int = 0, **kwargs: Any) -> str:
         """
         Generate the FlagID for the flag stored in a given tick.
         The FlagID is public from the moment the gameserver script is scheduled.
@@ -266,10 +275,10 @@ class ServiceInterface(ABC):
         flag_id_type = self.config.flag_ids[index]
         if flag_id_type == 'custom':
             with get_redis_connection() as redis_conn:
-                flag_id = redis_conn.get(f'custom_flag_ids:{self.config.service_id}:{tick}:{team.id}:{index}')
+                flag_id: bytes | None = redis_conn.get(f'custom_flag_ids:{self.config.service_id}:{tick}:{team.id}:{index}')
                 if flag_id is None:
                     raise FlagMissingException('Flag ID never generated')
-                return flag_id
+                return flag_id.decode('utf-8')
 
         return flag_ids.generate_flag_id(flag_id_type, self.id, team.id, tick, index, **kwargs)
 
@@ -282,7 +291,7 @@ class ServiceInterface(ABC):
 
 # === Assertion methods ===
 
-def assert_equals(expected, result) -> None:
+def assert_equals(expected: Any, result: Any) -> None:
     """
     :param expected:
     :param result:
@@ -292,16 +301,19 @@ def assert_equals(expected, result) -> None:
         raise AssertionError("Expected {} but was {}".format(repr(expected), repr(result)))
 
 
-def assert_requests_response(resp, contenttype: str = 'application/json; charset=utf-8') -> requests.Response:
+def assert_requests_response(resp: requests.Response, contenttype: str | None = 'application/json; charset=utf-8',
+                             status_code: int = 200) -> requests.Response:
     """
     :param requests.Response resp:
-    :param str contenttype:
+    :param str|None contenttype:
+    :param int status_code:
     :return: Assert that a request was answered with statuscode 200 and a given content-type
     """
-    if resp.status_code != 200:
+    if resp.status_code != status_code:
         print('Response =', resp)
         print('Url =', resp.url)
         print('---Response---\n' + resp.text[:4096] + '\n\n')
         raise AssertionError('Invalid status code {} (text: "{}")'.format(resp.status_code, resp.text[:512]))
-    assert_equals(contenttype.lower(), resp.headers['Content-Type'].lower())
+    if contenttype:
+        assert_equals(contenttype.lower(), resp.headers['Content-Type'].lower())
     return resp

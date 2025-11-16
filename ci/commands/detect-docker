@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-grep -q docker /proc/1/cgroup || [ -f /.dockerenv ] || grep -q 'overlay / overlay.*docker' /proc/mounts || exit 1
+grep -q docker /proc/1/cgroup || [ -f /.dockerenv ] || grep -q 'overlay / overlay.*docker' /proc/mounts || grep -q 'overlay / overlay.*buildkit' /proc/mounts || exit 1

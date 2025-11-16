@@ -27,12 +27,19 @@ def build_ci_base_image(image: str):
     print(f'[*] Image {image} has been created.')
 
 
+def get_build_stage_image(basefolder: str) -> str:
+    try:
+        with open(os.path.join(basefolder, '.gitlab-ci.yml'), 'r') as f:
+            ci_config: dict = yaml.safe_load(f)
+    except FileNotFoundError:
+        ci_config = {}
+    return ci_config.get('build', {}).get('image', 'saarsec/saarctf-ci-base:latest')
+
+
 def build():
     basefolder = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     output = os.path.join(basefolder, 'build_output')
-    with open(os.path.join(basefolder, '.gitlab-ci.yml'), 'r') as f:
-        ci_config: Dict = yaml.safe_load(f)
-    image = ci_config.get('build', {}).get('image', 'saarsec/saarctf-ci-base:latest')
+    image = get_build_stage_image(basefolder)
     # Create output folder
     if os.path.exists(output):
         shutil.rmtree(output)

@@ -1,6 +1,7 @@
 from __future__ import print_function, unicode_literals
 import random
 import string
+from typing import Any
 
 USERNAME_ADJECTIVES: list[str] = [
     'aback',
@@ -5691,7 +5692,8 @@ def ucfirst(s: str) -> str:
     return s[0].upper() + s[1:]
 
 
-def generate_name(words: int = 2, camelcase: bool = True, alphanum: bool = True, generator=random, sep: str = '') -> str:
+def generate_name(words: int = 2, camelcase: bool = True, alphanum: bool = True, generator: Any = random,
+                  sep: str = '') -> str:
     components: list[str] = []
     for i in range(words - 1):
         components.append(generator.choice(USERNAME_ADJECTIVES))
@@ -5704,7 +5706,7 @@ def generate_name(words: int = 2, camelcase: bool = True, alphanum: bool = True,
     return name
 
 
-def generate_username(camelcase: bool = True, alphanum: bool = True, generator=random) -> str:
+def generate_username(camelcase: bool = True, alphanum: bool = True, generator: Any = random) -> str:
     words = 3 if generator.randint(0, 100) < 90 else 2
     name = generate_name(words, camelcase, alphanum, generator=generator)
     return name + str(generator.randint(1, 9999))
@@ -5722,6 +5724,13 @@ def generate_random_string(l: int = 8, alphanum: bool = True) -> str:
 
 def generate_dummy_flag(size: int = 32) -> str:
     return 'SAAR{' + ''.join(random.choice(string.ascii_letters + string.digits + '-_') for _ in range(size)) + '}'
+
+
+def generate_random_text(words: int = 10) -> str:
+    return ' '.join(
+        random.choice(USERNAME_ADJECTIVES) if random.randint(0, 100) < 25 else random.choice(USERNAME_NOUNS)
+        for _ in range(words)
+    )
 
 
 if __name__ == '__main__':

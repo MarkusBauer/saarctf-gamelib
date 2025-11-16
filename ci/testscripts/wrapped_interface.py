@@ -32,6 +32,7 @@ class ServiceInterfaceWrapper:
             return iface
         iface.get_flag = prefix_function(self._get_flag, iface.get_flag)
         iface.get_flag_id = prefix_function(self._get_flag_id, iface.get_flag_id)
+        iface.set_flag_id = prefix_function(self._set_flag_id, iface.set_flag_id)
         iface.check_integrity = prefix_function(self._record_tick, iface.check_integrity)
         iface.store_flags = prefix_function(self._record_tick, iface.store_flags)
         iface.retrieve_flags = prefix_function(self._record_tick, iface.retrieve_flags)
@@ -46,6 +47,9 @@ class ServiceInterfaceWrapper:
         self._requested_flags.add((team.id, tick, payload))
 
     def _get_flag_id(self, team: Team, tick: int, index: int = 0, **kwargs) -> None:
+        self._requested_flag_ids.add((team.id, tick, index))
+
+    def _set_flag_id(self, team: Team, tick: int, index: int, value: str) -> None:
         self._requested_flag_ids.add((team.id, tick, index))
 
     def _record_tick(self, team: Team, tick: int) -> None:

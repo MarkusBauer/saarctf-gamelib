@@ -12,7 +12,7 @@ CUSTOM_CONFIG=$(cat -)
 
 OPTIONAL_CONFIG=""
 if [[ $CUSTOM_CONFIG != *"CPUQuota"* ]]; then
-  OPTIONAL_CONFIG="CPUQuota=50%"
+  OPTIONAL_CONFIG="CPUQuota=500%"
 fi
 
 cat << EOF > /etc/systemd/system/$SERVICENAME$SERVICESUFFIX.service

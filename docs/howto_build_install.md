@@ -109,7 +109,7 @@ We have examples for:
 - [Go Binary](#go-binary)
 - [Go Application with sources](#go-application-with-sources)
 - [Java / Kotlin with Gradle](#java-kotlin-with-gradle)
-- [MariaDB / MySQL](#mariadb-mysql)
+- [MariaDB / MySQL](#mariadb--mysql)
 - [MongoDB](#mongodb)
 - [NPM build for frontend](#npm-build-for-frontend)
 - [NPM / NodeJS server](#npm-nodejs-server)

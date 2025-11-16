@@ -18,7 +18,9 @@ WorkingDirectory=$2
 User=$SERVICENAME
 Group=$SERVICENAME
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-CPUQuota=50%
+Restart=on-failure
+RestartSec=10s
+CPUQuota=500%
 
 [Install]
 WantedBy=multi-user.target

@@ -12,14 +12,14 @@ class GameLogger:
         cls._start_time = time.time()
 
     @staticmethod
-    def format_arg(arg: Any) -> Any:
+    def format_arg(arg: Any) -> str:
         if isinstance(arg, requests.Response):
             if arg.status_code >= 400:
                 return str(arg) + ' (' + repr(arg.text.split('\n')[0][:1024]) + ')'
-        return arg
+        return str(arg)
 
     @classmethod
-    def log(cls, *args: Any):
-        formatted_args: list[Any] = [cls.format_arg(a) for a in args]
+    def log(cls, *args: Any) -> None:
+        formatted_args: list[str] = [cls.format_arg(a) for a in args]
         t = time.time() - cls._start_time
-        print(f'[{t:6.3f}] ', *formatted_args)
+        print(f'[{t:6.3f}] ' + ' '.join(formatted_args))
